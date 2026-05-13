@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "EV Futbol Live — Odds Bridge",
+  "version": "1.0.0",
+  "description": "Captura cuotas WS en tiempo real de PS3838 y Betano para EV Futbol Live.",
+
+  "permissions": ["scripting", "tabs", "storage"],
+
+  "host_permissions": [
+    "https://*.ps3838.com/*",
+    "https://*.pinnacle.com/*",
+    "https://*.sofascore.com/*",
+    "https://*.betano.com/*",
+    "https://*.betano.com.co/*",
+    "https://*.betano.co/*",
+    "https://*.betplay.com.co/*",
+    "https://*.kambi.com/*",
+    "https://*.bicdn.com/*",
+    "http://localhost:8000/*",
+    "ws://localhost:8000/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.ps3838.com/*",
+        "https://*.pinnacle.com/*",
+        "https://*.sofascore.com/*",
+        "https://*.betano.com/*",
+        "https://*.betano.com.co/*",
+        "https://*.betano.co/*",
+        "https://*.betplay.com.co/*"
+      ],
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://*.ps3838.com/*",
+        "https://*.pinnacle.com/*",
+        "https://*.sofascore.com/*",
+        "https://*.betano.com/*",
+        "https://*.betano.com.co/*",
+        "https://*.betano.co/*",
+        "https://*.betplay.com.co/*"
+      ],
+      "js": ["content_script.js"],
+      "run_at": "document_idle",
+      "world": "ISOLATED",
+      "all_frames": true
+    }
+  ],
+
+  "web_accessible_resources": [],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

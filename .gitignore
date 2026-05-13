@@ -1,0 +1,37 @@
+# ── Credenciales y sesiones ──────────────────────────────────────────
+.env
+ps3838_session.json
+
+# ── Python ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# ── Node / Frontend ───────────────────────────────────────────────────
+node_modules/
+dist/
+frontend/dist/
+
+# ── Datos locales ────────────────────────────────────────────────────
+live_history/
+live_history_v2/
+temp_history_test/
+*.jsonl
+
+# ── Browser profiles / scrapers ─────────────────────────────────────
+temp_profiles/
+
+# ── Logs ─────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Datasets / CSVs grandes ─────────────────────────────────────────
+*.csv
+*.db
+*.db-journal
+
+# ── HTML reports (generados) ────────────────────────────────────────
+*.html

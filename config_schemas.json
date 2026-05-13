@@ -1,0 +1,21 @@
+{
+  "betano": {
+    "live_endpoints": ["danae-webapi", "/api/live", "top-events-v2", "api/sport/"],
+    "paths": {
+        "api_top_events_dict": "data.topEventsV2.events",
+        "live_overview_events_dict": "data.liveOverview.events",
+        "root_events_dict": "events",
+        "data_events_dict": "data.events",
+        
+        "participants": "participants",
+        "team_local_name": "participants[0].name",
+        "team_away_name": "participants[1].name",
+        "event_url": "url",
+        "is_live": "isLive",
+        "sport_id": "sportId"
+    },
+    "values": {
+        "football_snippet": "FOOT"
+    }
+  }
+}
