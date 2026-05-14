@@ -240,10 +240,11 @@
     "url": "https://www.betano.co/live/fram-reykjavik-valur-reykjavik/85072250/"
   },
   "stjarnan garabr|kr reykjavik": {
-    "betano_eid": 85072230,
     "betano_home": "Stjarnan",
     "betano_away": "KR Reykjavik",
-    "url": "https://www.betano.co/live/stjarnan-kr-reykjavik/85072230/"
+    "betano_eid": 85557839,
+    "url": "https://www.betano.co/live/stjarnan-kr-reykjavik/85557839/",
+    "score": 100
   },
   "ia akranes|keflavik if": {
     "betano_eid": 85072052,
@@ -944,6 +945,545 @@
     "betano_away": "Sevilla FC (F)",
     "betano_eid": 84289952,
     "url": "https://www.betano.co/live/madrid-cff-f-sevilla-fc-f/84289952/",
+    "score": 100
+  },
+  "espanyol|athletic": {
+    "betano_home": "RCD Espanyol",
+    "betano_away": "Athletic Bilbao",
+    "betano_eid": 84450938,
+    "url": "https://www.betano.co/live/rcd-espanyol-athletic-bilbao/84450938/",
+    "score": 100
+  },
+  "villarreal|sevilla": {
+    "betano_home": "Villarreal CF",
+    "betano_away": "Sevilla FC",
+    "betano_eid": 81204712,
+    "url": "https://www.betano.co/live/villarreal-cf-sevilla-fc/81204712/",
+    "score": 100
+  },
+  "stade brestois|strasbourg": {
+    "betano_home": "Stade Brestois 29",
+    "betano_away": "RC Strasbourg",
+    "betano_eid": 83582489,
+    "url": "https://www.betano.co/live/stade-brestois-29-rc-strasbourg/83582489/",
+    "score": 100
+  },
+  "olympiacos|panathinaikos": {
+    "betano_home": "Olympiacos Piraeus",
+    "betano_away": "Panathinaikos",
+    "betano_eid": 83002219,
+    "url": "https://www.betano.co/live/olympiacos-piraeus-panathinaikos/83002219/",
+    "score": 100
+  },
+  "paok|aek athens": {
+    "betano_home": "PAOK",
+    "betano_away": "AEK Atenas",
+    "betano_eid": 83002100,
+    "url": "https://www.betano.co/live/paok-aek-atenas/83002100/",
+    "score": 95
+  },
+  "hradec kralove|slovan liberec": {
+    "betano_home": "FC Hradec Kralove",
+    "betano_away": "FC Slovan Liberec",
+    "betano_eid": 84765104,
+    "url": "https://www.betano.co/live/fc-hradec-kralove-fc-slovan-liberec/84765104/",
+    "score": 100
+  },
+  "mzks arka gdynia|gornik zabrze": {
+    "betano_home": "Arka Gdynia",
+    "betano_away": "Gornik Zabrze",
+    "betano_eid": 84278655,
+    "url": "https://www.betano.co/live/arka-gdynia-gornik-zabrze/84278655/",
+    "score": 100
+  },
+  "al ittihad alexandria|tala ea el gaish": {
+    "betano_home": "Al Ittihad Alexandria",
+    "betano_away": "Talaea El Gaish",
+    "betano_eid": 84279372,
+    "url": "https://www.betano.co/live/al-ittihad-alexandria-talaea-el-gaish/84279372/",
+    "score": 96
+  },
+  "national bank of egypt|petrojet": {
+    "betano_home": "National Bank",
+    "betano_away": "Petrojet FC",
+    "betano_eid": 83474816,
+    "url": "https://www.betano.co/live/national-bank-petrojet-fc/83474816/",
+    "score": 100
+  },
+  "ashdod|hapoel jerusalem": {
+    "betano_home": "FC Ashdod",
+    "betano_away": "Hapoel Jerusalem",
+    "betano_eid": 85343224,
+    "url": "https://www.betano.co/live/fc-ashdod-hapoel-jerusalem/85343224/",
+    "score": 100
+  },
+  "bnei sakhnin|hapoel ironi kiryat shmona": {
+    "betano_home": "Bnei Sakhnin FC",
+    "betano_away": "Hapoel Ironi Kiryat Shmona FC",
+    "betano_eid": 85343231,
+    "url": "https://www.betano.co/live/bnei-sakhnin-fc-hapoel-ironi-kiryat-shmona-fc/85343231/",
+    "score": 100
+  },
+  "ironi dorot tiberias|maccabi bney reine": {
+    "betano_home": "Ironi Tiberias",
+    "betano_away": "Maccabi Bnei Raina",
+    "betano_eid": 85343241,
+    "url": "https://www.betano.co/live/ironi-tiberias-maccabi-bnei-raina/85343241/",
+    "score": 85
+  },
+  "maccabi netanya|hapoel haifa": {
+    "betano_home": "Maccabi Netanya",
+    "betano_away": "Hapoel Haifa",
+    "betano_eid": 85343244,
+    "url": "https://www.betano.co/live/maccabi-netanya-hapoel-haifa/85343244/",
+    "score": 100
+  },
+  "al tai|jeddah": {
+    "betano_home": "Al-Tai",
+    "betano_away": "Jeddah Club",
+    "betano_eid": 85343190,
+    "url": "https://www.betano.co/live/al-tai-jeddah-club/85343190/",
+    "score": 100
+  },
+  "al adalah|al jubail": {
+    "betano_home": "Al-Adalah FC",
+    "betano_away": "Al Jubail",
+    "betano_eid": 85343236,
+    "url": "https://www.betano.co/live/al-adalah-fc-al-jubail/85343236/",
+    "score": 100
+  },
+  "al arabi sa|al jandal": {
+    "betano_home": "Al-Adalah FC",
+    "betano_away": "Al Jubail",
+    "betano_eid": 85343236,
+    "url": "https://www.betano.co/live/al-adalah-fc-al-jubail/85343236/",
+    "score": 75
+  },
+  "genclerbirligi|trabzonspor": {
+    "betano_home": "Genclerbirligi",
+    "betano_away": "Trabzonspor",
+    "betano_eid": 85557575,
+    "url": "https://www.betano.co/live/genclerbirligi-trabzonspor/85557575/",
+    "score": 100
+  },
+  "arsenal|everton": {
+    "betano_home": "Arsenal FC (F)",
+    "betano_away": "Everton FC (F)",
+    "betano_eid": 85030786,
+    "url": "https://www.betano.co/live/arsenal-fc-f-everton-fc-f/85030786/",
+    "score": 100
+  },
+  "maccabi tel aviv|maccabi haifa": {
+    "betano_home": "Maccabi Tel Aviv",
+    "betano_away": "Maccabi Haifa",
+    "betano_eid": 85343246,
+    "url": "https://www.betano.co/live/maccabi-tel-aviv-maccabi-haifa/85343246/",
+    "score": 100
+  },
+  "almere|willem ii tilburg": {
+    "betano_home": "Almere City FC",
+    "betano_away": "Willem II Tilburg",
+    "betano_eid": 85502417,
+    "url": "https://www.betano.co/live/almere-city-fc-willem-ii-tilburg/85502417/",
+    "score": 100
+  },
+  "sk slavia praha|fk jablonec": {
+    "betano_home": "SK Slavia Praha",
+    "betano_away": "FK Jablonec",
+    "betano_eid": 84765096,
+    "url": "https://www.betano.co/live/sk-slavia-praha-fk-jablonec/84765096/",
+    "score": 100
+  },
+  "manchester|crystal palace": {
+    "betano_home": "Manchester City",
+    "betano_away": "Crystal Palace FC",
+    "betano_eid": 84967636,
+    "url": "https://www.betano.co/live/manchester-city-crystal-palace-fc/84967636/",
+    "score": 100
+  },
+  "lens|paris saint germain": {
+    "betano_home": "RC Lens",
+    "betano_away": "Paris Saint-Germain",
+    "betano_eid": 84043495,
+    "url": "https://www.betano.co/live/rc-lens-paris-saint-germain/84043495/",
+    "score": 100
+  },
+  "heart of midlothian|falkirk": {
+    "betano_home": "Heart of Midlothian FC",
+    "betano_away": "Falkirk",
+    "betano_eid": 85307861,
+    "url": "https://www.betano.co/live/heart-of-midlothian-fc-falkirk/85307861/",
+    "score": 100
+  },
+  "motherwell|celtic": {
+    "betano_home": "Motherwell FC",
+    "betano_away": "Celtic FC",
+    "betano_eid": 85307863,
+    "url": "https://www.betano.co/live/motherwell-fc-celtic-fc/85307863/",
+    "score": 100
+  },
+  "rangers|hibernian": {
+    "betano_home": "Rangers FC",
+    "betano_away": "Hibernian FC",
+    "betano_eid": 85307862,
+    "url": "https://www.betano.co/live/rangers-fc-hibernian-fc/85307862/",
+    "score": 100
+  },
+  "rakow czestochowa|jagiellonia biaystok": {
+    "betano_home": "Rakow Czestochowa",
+    "betano_away": "Jagiellonia Bialystok",
+    "betano_eid": 84278704,
+    "url": "https://www.betano.co/live/rakow-czestochowa-jagiellonia-bialystok/84278704/",
+    "score": 99
+  },
+  "stockport county|stevenage": {
+    "betano_home": "Stockport County",
+    "betano_away": "Stevenage Borough",
+    "betano_eid": 85247813,
+    "url": "https://www.betano.co/live/stockport-county-stevenage-borough/85247813/",
+    "score": 100
+  },
+  "lazio|inter": {
+    "betano_home": "SS Lazio",
+    "betano_away": "Inter de Mil\u00e1n",
+    "betano_eid": 84587000,
+    "url": "https://www.betano.co/live/ss-lazio-inter-de-milan/84587000/",
+    "score": 100
+  },
+  "atletico platense|san martin san juan": {
+    "betano_home": "CA Platense",
+    "betano_away": "San Martin de San Juan",
+    "betano_eid": 85195459,
+    "url": "https://www.betano.co/live/ca-platense-san-martin-de-san-juan/85195459/",
+    "score": 95
+  },
+  "deportivo alaves|barcelona": {
+    "betano_home": "Deportivo Alav\u00e9s",
+    "betano_away": "FC Barcelona",
+    "betano_eid": 81204714,
+    "url": "https://www.betano.co/live/deportivo-alaves-fc-barcelona/81204714/",
+    "score": 100
+  },
+  "getafe|mallorca": {
+    "betano_home": "Getafe CF",
+    "betano_away": "RCD Mallorca",
+    "betano_eid": 81204715,
+    "url": "https://www.betano.co/live/getafe-cf-rcd-mallorca/81204715/",
+    "score": 100
+  },
+  "marica|sao goncalo ec": {
+    "betano_home": "Marica RJ",
+    "betano_away": "Sao Goncalo EC RJ",
+    "betano_eid": 85413731,
+    "url": "https://www.betano.co/live/marica-rj-sao-goncalo-ec-rj/85413731/",
+    "score": 100
+  },
+  "botafogo u20|flamengo u20": {
+    "betano_home": "Botafogo RJ Sub-20",
+    "betano_away": "Flamengo RJ Sub-20",
+    "betano_eid": 85619777,
+    "url": "https://www.betano.co/live/botafogo-rj-sub-20-flamengo-rj-sub-20/85619777/",
+    "score": 86
+  },
+  "santiago wanderers|union espanola": {
+    "betano_home": "Santiago Wanderers (F)",
+    "betano_away": "Uni\u00f3n Espa\u00f1ola (F)",
+    "betano_eid": 85621720,
+    "url": "https://www.betano.co/live/santiago-wanderers-f-union-espanola-f/85621720/",
+    "score": 100
+  },
+  "bogota|barranquilla": {
+    "betano_home": "Bogot\u00e1",
+    "betano_away": "Barranquilla FC",
+    "betano_eid": 85292286,
+    "url": "https://www.betano.co/live/bogota-barranquilla-fc/85292286/",
+    "score": 100
+  },
+  "cumbaya|ldu portoviejo": {
+    "betano_home": "Cumbay\u00e1",
+    "betano_away": "LDU Portoviejo",
+    "betano_eid": 85236802,
+    "url": "https://www.betano.co/live/cumbaya-ldu-portoviejo/85236802/",
+    "score": 100
+  },
+  "aguila|luis angel firpo": {
+    "betano_home": "CD Aguila",
+    "betano_away": "CD Luis Angel Firpo",
+    "betano_eid": 85588884,
+    "url": "https://www.betano.co/live/cd-aguila-cd-luis-angel-firpo/85588884/",
+    "score": 100
+  },
+  "lechuzas upgch|deportivo delfines coatzacoalcos": {
+    "betano_home": "Lechuzas UPGCH",
+    "betano_away": "Deportivo Delfines Coatzacoalcos",
+    "betano_eid": 85608165,
+    "url": "https://www.betano.co/live/lechuzas-upgch-deportivo-delfines-coatzacoalcos/85608165/",
+    "score": 100
+  },
+  "sportivo san lorenzo reserve|mayo reserve": {
+    "betano_home": "Sportivo San Lorenzo II",
+    "betano_away": "2 de Mayo II",
+    "betano_eid": 85606377,
+    "url": "https://www.betano.co/live/sportivo-san-lorenzo-ii-2-de-mayo-ii/85606377/",
+    "score": 89
+  },
+  "rosario central|": {
+    "betano_home": "CA Rosario Central",
+    "betano_away": "Racing Club",
+    "betano_eid": 85541394,
+    "url": "https://www.betano.co/live/ca-rosario-central-racing-club/85541394/",
+    "score": 100
+  },
+  "independiente|blooming": {
+    "betano_home": "Independiente Petrolero",
+    "betano_away": "Blooming Santa Cruz",
+    "betano_eid": 84610839,
+    "url": "https://www.betano.co/live/independiente-petrolero-blooming-santa-cruz/84610839/",
+    "score": 100
+  },
+  "juventude|sao paulo": {
+    "betano_home": "Juventude RS",
+    "betano_away": "Sao Paulo SP",
+    "betano_eid": 84534976,
+    "url": "https://www.betano.co/live/juventude-rs-sao-paulo-sp/84534976/",
+    "score": 100
+  },
+  "vasco gama|paysandu": {
+    "betano_home": "Vasco da Gama RJ",
+    "betano_away": "Paysandu PA",
+    "betano_eid": 84539427,
+    "url": "https://www.betano.co/live/vasco-da-gama-rj-paysandu-pa/84539427/",
+    "score": 100
+  },
+  "coritiba|santos": {
+    "betano_home": "Coritiba PR",
+    "betano_away": "Santos SP",
+    "betano_eid": 84588605,
+    "url": "https://www.betano.co/live/coritiba-pr-santos-sp/84588605/",
+    "score": 100
+  },
+  "philadelphia union ii|new england revolution ii": {
+    "betano_home": "Orlando City SC",
+    "betano_away": "Philadelphia Union",
+    "betano_eid": 81214019,
+    "url": "/cuotas-de-partido/orlando-city-sc-philadelphia-union/81214019/",
+    "score": 78
+  },
+  "deportivo pasto|deportes tolima": {
+    "betano_home": "Deportivo Pasto",
+    "betano_away": "Deportes Tolima",
+    "betano_eid": 85268574,
+    "url": "https://www.betano.co/live/deportivo-pasto-deportes-tolima/85268574/",
+    "score": 100
+  },
+  "monarchs slc|town": {
+    "betano_home": "Real Monarchs",
+    "betano_away": "The Town FC",
+    "betano_eid": 81891537,
+    "url": "https://www.betano.co/live/real-monarchs-the-town-fc/81891537/",
+    "score": 100
+  },
+  "one knoxville|union omaha": {
+    "betano_home": "One Knoxville SC",
+    "betano_away": "Union Omaha SC",
+    "betano_eid": 84643693,
+    "url": "https://www.betano.co/live/one-knoxville-sc-union-omaha-sc/84643693/",
+    "score": 100
+  },
+  "carabobo|estudiantes merida": {
+    "betano_home": "Carabobo FC",
+    "betano_away": "Estudiantes de Merida",
+    "betano_eid": 84923167,
+    "url": "https://www.betano.co/live/carabobo-fc-estudiantes-de-merida/84923167/",
+    "score": 100
+  },
+  "charlotte|new york": {
+    "betano_home": "Charlotte FC",
+    "betano_away": "New York City FC",
+    "betano_eid": 81212559,
+    "url": "https://www.betano.co/live/charlotte-fc-new-york-city-fc/81212559/",
+    "score": 100
+  },
+  "mirassol|red bull bragantino": {
+    "betano_home": "Mirassol SP",
+    "betano_away": "Bragantino SP",
+    "betano_eid": 84592546,
+    "url": "https://www.betano.co/live/mirassol-sp-bragantino-sp/84592546/",
+    "score": 93
+  },
+  "academia puerto cabello|portuguesa": {
+    "betano_home": "Academia Puerto Cabello",
+    "betano_away": "Portuguesa FC",
+    "betano_eid": 85030814,
+    "url": "https://www.betano.co/live/academia-puerto-cabello-portuguesa-fc/85030814/",
+    "score": 100
+  },
+  "montreal|portland timbers": {
+    "betano_home": "CF Montreal",
+    "betano_away": "Portland Timbers",
+    "betano_eid": 81214026,
+    "url": "https://www.betano.co/live/cf-montreal-portland-timbers/81214026/",
+    "score": 100
+  },
+  "cincinnati|inter miami": {
+    "betano_home": "FC Cincinnati",
+    "betano_away": "Inter Miami CF",
+    "betano_eid": 81214038,
+    "url": "https://www.betano.co/live/fc-cincinnati-inter-miami-cf/81214038/",
+    "score": 100
+  },
+  "new england revolution|nashville": {
+    "betano_home": "New England Revolution",
+    "betano_away": "Nashville SC",
+    "betano_eid": 81214010,
+    "url": "https://www.betano.co/live/new-england-revolution-nashville-sc/81214010/",
+    "score": 100
+  },
+  "new york red bulls|columbus crew": {
+    "betano_home": "New York Red Bulls",
+    "betano_away": "Columbus Crew SC",
+    "betano_eid": 81214044,
+    "url": "https://www.betano.co/live/new-york-red-bulls-columbus-crew-sc/81214044/",
+    "score": 100
+  },
+  "orlando|philadelphia union": {
+    "betano_home": "FC Sion",
+    "betano_away": "FC Lugano",
+    "betano_eid": 84970397,
+    "url": "/cuotas-de-partido/fc-sion-fc-lugano/84970397/",
+    "score": 79
+  },
+  "sarasota paradise|jacksonville": {
+    "betano_home": "Sarasota Paradise",
+    "betano_away": "Sporting Jax",
+    "betano_eid": 85630976,
+    "url": "https://www.betano.co/live/sarasota-paradise-sporting-jax/85630976/",
+    "score": 90
+  },
+  "bolivar|nacional potosi": {
+    "betano_home": "Bolivar La Paz",
+    "betano_away": "CA Nacional Potosi",
+    "betano_eid": 85030812,
+    "url": "https://www.betano.co/live/bolivar-la-paz-ca-nacional-potosi/85030812/",
+    "score": 100
+  },
+  "portland timbers ii|minnesota": {
+    "betano_home": "Portland Timbers II",
+    "betano_away": "Minnesota United FC II",
+    "betano_eid": 81891612,
+    "url": "https://www.betano.co/live/portland-timbers-ii-minnesota-united-fc-ii/81891612/",
+    "score": 100
+  },
+  "colorado rapids|austin ii": {
+    "betano_home": "Colorado Rapids II",
+    "betano_away": "Austin FC II",
+    "betano_eid": 81891594,
+    "url": "https://www.betano.co/live/colorado-rapids-ii-austin-fc-ii/81891594/",
+    "score": 100
+  },
+  "huntsville|cincinnati": {
+    "betano_home": "Huntsville City FC",
+    "betano_away": "FC Cincinnati II",
+    "betano_eid": 81891546,
+    "url": "https://www.betano.co/live/huntsville-city-fc-fc-cincinnati-ii/81891546/",
+    "score": 100
+  },
+  "monarchs slc|": {
+    "betano_home": "Real Monarchs",
+    "betano_away": "The Town FC",
+    "betano_eid": 81891537,
+    "url": "https://www.betano.co/live/real-monarchs-the-town-fc/81891537/",
+    "score": 100
+  },
+  "ceara|atletico mineiro": {
+    "betano_home": "Ceara SC CE",
+    "betano_away": "Clube Atletico MG",
+    "betano_eid": 84640871,
+    "url": "https://www.betano.co/live/ceara-sc-ce-clube-atletico-mg/84640871/",
+    "score": 87
+  },
+  "remo|bahia": {
+    "betano_home": "Remo PA",
+    "betano_away": "EC Bahia BA",
+    "betano_eid": 84587432,
+    "url": "https://www.betano.co/live/remo-pa-ec-bahia-ba/84587432/",
+    "score": 100
+  },
+  "dallas|vancouver whitecaps": {
+    "betano_home": "FC Dallas",
+    "betano_away": "Vancouver Whitecaps FC",
+    "betano_eid": 81215976,
+    "url": "https://www.betano.co/live/fc-dallas-vancouver-whitecaps-fc/81215976/",
+    "score": 100
+  },
+  "minnesota|colorado rapids": {
+    "betano_home": "Minnesota United FC",
+    "betano_away": "Colorado Rapids",
+    "betano_eid": 81215969,
+    "url": "https://www.betano.co/live/minnesota-united-fc-colorado-rapids/81215969/",
+    "score": 100
+  },
+  "kansas|la galaxy": {
+    "betano_home": "Sporting Kansas City",
+    "betano_away": "Los Angeles Galaxy",
+    "betano_eid": 81215965,
+    "url": "https://www.betano.co/live/sporting-kansas-city-los-angeles-galaxy/81215965/",
+    "score": 94
+  },
+  "st louis|los angeles": {
+    "betano_home": "St. Louis City SC",
+    "betano_away": "Los Angeles FC",
+    "betano_eid": 81215960,
+    "url": "https://www.betano.co/live/st-louis-city-sc-los-angeles-fc/81215960/",
+    "score": 100
+  },
+  "river plate|gimnasia esgrima": {
+    "betano_home": "River Plate",
+    "betano_away": "Gimnasia La Plata\u200e",
+    "betano_eid": 85551539,
+    "url": "https://www.betano.co/live/river-plate-gimnasia-la-plata\u200e/85551539/",
+    "score": 87
+  },
+  "jacuipense|palmeiras": {
+    "betano_home": "Jacuipense BA",
+    "betano_away": "Palmeiras SP",
+    "betano_eid": 84642758,
+    "url": "https://www.betano.co/live/jacuipense-ba-palmeiras-sp/84642758/",
+    "score": 100
+  },
+  "boise|naples": {
+    "betano_home": "Union Saint-Gilloise",
+    "betano_away": "RSC Anderlecht",
+    "betano_eid": 80902278,
+    "url": "/cuotas-de-partido/union-saint-gilloise-rsc-anderlecht/80902278/",
+    "score": 69
+  },
+  "junior barranquilla|once caldas": {
+    "betano_home": "Corinthians SP",
+    "betano_away": "Barra SC",
+    "betano_eid": 84539493,
+    "url": "/cuotas-de-partido/corinthians-sp-barra-sc/84539493/",
+    "score": 69
+  },
+  "salt lake|houston dynamo": {
+    "betano_home": "Real Salt Lake",
+    "betano_away": "Houston Dynamo FC",
+    "betano_eid": 81218467,
+    "url": "https://www.betano.co/live/real-salt-lake-houston-dynamo-fc/81218467/",
+    "score": 100
+  },
+  "san diego|austin": {
+    "betano_home": "San Diego FC",
+    "betano_away": "Austin FC",
+    "betano_eid": 81218564,
+    "url": "https://www.betano.co/live/san-diego-fc-austin-fc/81218564/",
+    "score": 100
+  },
+  "seattle sounders|san jose earthquakes": {
+    "betano_home": "Seattle Sounders FC",
+    "betano_away": "San Jose Earthquakes",
+    "betano_eid": 81218517,
+    "url": "https://www.betano.co/live/seattle-sounders-fc-san-jose-earthquakes/81218517/",
     "score": 100
   }
 }

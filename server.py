@@ -56,9 +56,6 @@ def limpiar_margen_bookie(cuota_over, cuota_under):
         print(f"Error limpiando cuotas: {e}")
         return None, None
 
-# Safe mode: si el Faro (Pinnacle) no actualiza dentro de esta ventana, Kelly = 0 / NO BET.
-FARO_STALE_SECONDS = 45
-
 # Mocked args para funciones que esperan un Namespace del CLI
 # ── NORMALIZADOR DE NOMBRES (Global para matching) ──
 def _normalize_team_name(s: str) -> str:
@@ -142,7 +139,7 @@ async def sofascore_polling_loop():
     import asyncio
     import json
 
-    print("🚀 [SERVER POLLING] Dual: Betano (20s) + SofaScore (300s)...")
+    print("🚀 [SERVER POLLING] Dual: Betano (5s) + SofaScore (60s)...")
     
     betano_session = httpx.AsyncClient(timeout=15.0)
     sofascore_session = CurlSession(impersonate="chrome124")
@@ -152,7 +149,7 @@ async def sofascore_polling_loop():
         while True:
             try:
                 cycle += 1
-                await asyncio.sleep(20)  # Betano: 20s, SofaScore: cada 5 ciclos (100s)
+                await asyncio.sleep(5)  # Betano: 5s, SofaScore: cada 12 ciclos (~60s)
                 
                 active_matches = []
                 async with global_state["lock"]:
@@ -223,7 +220,7 @@ async def sofascore_polling_loop():
                             print(f"⚠️ [POLL BETANO] {betano_id}: {e}")
                     
                     # ── RESPALDO: SofaScore (solo cada 3 ciclos = 60s) ──
-                    if cycle % 3 == 0 and sofascore_id:
+                    if cycle % 12 == 0 and sofascore_id:
                         try:
                             headers = {
                                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -325,6 +322,7 @@ global_state = {
         "kill_switch_active": False
     },
     "lock": asyncio.Lock(),
+    "pipeline_semaphore": asyncio.Semaphore(4),  # max 4 recálculos simultáneos
     "event_log": [],  # list of {ts, icon, msg, type} — podado cada 1000 entradas
     "_task_registry": set(),  # {asyncio.Task} para cleanup en shutdown
 }
@@ -351,10 +349,15 @@ try:
     from bet_lock import (
         is_locked, place_lock, release_lock, release_all_for_match,
         get_all_locks, cleanup_expired as _cleanup_bet_locks,
+        load_control, save_control, read_blotter,
     )
 except ImportError:
     is_locked = place_lock = release_lock = release_all_for_match = get_all_locks = _cleanup_bet_locks = None
+    load_control = save_control = read_blotter = None
 
+
+_last_pipeline_run: dict[int, float] = {}
+_PIPELINE_DEBOUNCE = 2.0  # segundos minimos entre ejecuciones del pipeline por match
 
 active_urls = []
 monitor = None
@@ -375,11 +378,17 @@ def sanitize_for_json(obj):
 
 def update_match_math(ctx, snapshot, state, base_markets, params, prematch):
     """Thin wrapper delegating to the extracted decision pipeline."""
+    ctx_id = id(ctx)
+    now = time.time()
+    if now - _last_pipeline_run.get(ctx_id, 0) < _PIPELINE_DEBOUNCE:
+        _d = ctx.get("data")
+        return state, base_markets, _d.get("result", {}) if _d else {}
+    _last_pipeline_run[ctx_id] = now
+
     ctx["_kill_switch_active"] = global_state["settings"].get("kill_switch_active", False)
     return run_decision_pipeline(
         ctx, snapshot, state, base_markets, params, prematch,
         backend_args=backend_args,
-        faro_stale_seconds=FARO_STALE_SECONDS,
         is_locked_fn=is_locked,
         sanitize_fn=sanitize_for_json,
         scraper_log=scraper_log,
@@ -407,6 +416,11 @@ async def background_loop():
                         _cleanup_bet_locks()
                     except Exception:
                         pass
+                # Limpieza de debounce (ctxs que ya no estan en matches)
+                active_ctx_ids = {id(c) for c in global_state["matches"].values()}
+                stale_ids = [k for k in _last_pipeline_run if k not in active_ctx_ids]
+                for sid in stale_ids:
+                    _last_pipeline_run.pop(sid, None)
                 await asyncio.sleep(1)
                 continue
 
@@ -422,14 +436,15 @@ async def background_loop():
                     continue
                 ctx["_url"] = url
 
-            EXT_FRESH_SECS = 20
+            EXT_FRESH_SECS = 60
             ext_ts = ctx.get("ext_sourced_ts", 0)
             # Procesar si tiene datos de extension O si tiene cuotas de Betano inyectadas
             has_betano_odds = bool(ctx.get("pinnacle_fair"))
             if (ctx.get("ext_sourced") and (now - ext_ts) < EXT_FRESH_SECS) or (has_betano_odds and ctx.get("force_refresh")):
                 snapshot = ctx.get("last_snapshot")
                 if snapshot is None:
-                    # Si no hay snapshot pero hay cuotas, crear uno minimo
+                    # Si no hay snapshot pero hay cuotas, crear uno minimo para guardar contexto
+                    # PERO NO correr el pipeline hasta que lleguen datos reales de SofaScore
                     if has_betano_odds:
                         from types import SimpleNamespace
                         snapshot = SimpleNamespace(
@@ -440,6 +455,11 @@ async def background_loop():
                             status_text="inprogress", tournament="",
                         )
                         ctx["last_snapshot"] = snapshot
+                        async with global_state["lock"]:
+                            ctx["force_refresh"] = False
+                        # Guardar contexto pero NO ejecutar pipeline sin datos reales
+                        print(f"[EXT MODE] ⏳ Cuotas listas, esperando stats de SofaScore para {url[-40:]}")
+                        continue
                     else:
                         continue
                 try:
@@ -447,6 +467,12 @@ async def background_loop():
                     from dataclasses import replace
                     params = build_params(preset, None, None)
                     params = replace(params, kelly_fraction=global_state["settings"]["kelly_fraction"], max_stake=1.0)
+                    if load_control:
+                        try:
+                            min_ev = float(load_control().get("min_ev_threshold", 0.08))
+                            params = replace(params, edge_threshold=min_ev)
+                        except Exception:
+                            pass
 
                     state = build_state_from_snapshot(snapshot, ctx.get("previous_state"))
                     # ── Merge Híbrido Betano (si hay betano_event_id mapeado) ──
@@ -481,7 +507,7 @@ async def background_loop():
                     import logging
                     if logging.getLogger("evfl").isEnabledFor(logging.DEBUG):
                         print(f"🎯 [TRACER CALL] Llamando a update_match_math desde EXT MODE para {url[-30:]}")
-                    state, markets, result = update_match_math(ctx, snapshot, state, markets, params, prematch)
+                    state, markets, result = await asyncio.to_thread(update_match_math, ctx, snapshot, state, markets, params, prematch)
 
                     async with global_state["lock"]:
                         ctx["force_refresh"] = False
@@ -553,7 +579,7 @@ async def background_loop():
                 import logging
                 if logging.getLogger("evfl").isEnabledFor(logging.DEBUG):
                     print(f"🎯 [TRACER CALL] Llamando a update_match_math desde SCRAPER MODE para {url[-30:]}")
-                state, markets, result = update_match_math(ctx, snapshot, state, markets, params, prematch)
+                state, markets, result = await asyncio.to_thread(update_match_math, ctx, snapshot, state, markets, params, prematch)
 
                 # ── APUESTA: extraer decisiones finales ──
                 _data = ctx.get("data", {})
@@ -850,7 +876,7 @@ async def ingest_betano_overview(payload: dict):
         return {"status": "rejected", "reason": "contenthub/signalr debe fluir por WebSocket"}
 
     try:
-        resultados = _parse_betano_overview(data)
+        resultados = await asyncio.to_thread(_parse_betano_overview, data)
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -877,15 +903,44 @@ async def ingest_betano_overview(payload: dict):
                         break
                     # Priority 2: team name fuzzy match
                     if home and away:
-                        ctx_home = str(ctx.get("home_team", "")).lower()
-                        ctx_away = str(ctx.get("away_team", "")).lower()
+                        ctx_home = str(ctx.get("home_team", "")).strip()
+                        ctx_away = str(ctx.get("away_team", "")).strip()
                         if ctx_home and ctx_away:
-                            h_match = ctx_home in home.lower() or home.lower() in ctx_home
-                            a_match = ctx_away in away.lower() or away.lower() in ctx_away
-                            if h_match and a_match:
+                            norm_ctx_home = _normalize_team_name(ctx_home)
+                            norm_ctx_away = _normalize_team_name(ctx_away)
+                            norm_home = _normalize_team_name(home)
+                            norm_away = _normalize_team_name(away)
+                            # Exacto post-normalizacion
+                            if (norm_ctx_home == norm_home and norm_ctx_away == norm_away) or \
+                               (norm_ctx_home == norm_away and norm_ctx_away == norm_home):
                                 found_ctx = ctx
                                 murl_target = murl
                                 break
+                            # Fuzzy con thefuzz
+                            try:
+                                from thefuzz import fuzz
+                                home_direct = max(fuzz.partial_ratio(norm_ctx_home, norm_home),
+                                                  fuzz.token_sort_ratio(norm_ctx_home, norm_home))
+                                away_direct = max(fuzz.partial_ratio(norm_ctx_away, norm_away),
+                                                  fuzz.token_sort_ratio(norm_ctx_away, norm_away))
+                                direct = (home_direct + away_direct) / 2.0
+                                home_rev = max(fuzz.partial_ratio(norm_ctx_home, norm_away),
+                                               fuzz.token_sort_ratio(norm_ctx_home, norm_away))
+                                away_rev = max(fuzz.partial_ratio(norm_ctx_away, norm_home),
+                                               fuzz.token_sort_ratio(norm_ctx_away, norm_home))
+                                reverse = (home_rev + away_rev) / 2.0
+                                if max(direct, reverse) >= 70:
+                                    found_ctx = ctx
+                                    murl_target = murl
+                                    break
+                            except ImportError:
+                                # Fallback: substring match
+                                h_match = ctx_home.lower() in home.lower() or home.lower() in ctx_home.lower()
+                                a_match = ctx_away.lower() in away.lower() or away.lower() in ctx_away.lower()
+                                if h_match and a_match:
+                                    found_ctx = ctx
+                                    murl_target = murl
+                                    break
                                 
                 if not found_ctx:
                     continue
@@ -894,51 +949,53 @@ async def ingest_betano_overview(payload: dict):
                 # ── Partido encontrado: inyectar cuotas ──
                 lines = r.get("lines", [])
                 if lines:
-                    old = ctx.get("data") or {}
-                    old_snap = old.get("snapshot") or {}
-                    old_state = old.get("state") or {}
-                    ctx["data"] = {
-                        "home_team": home,
-                        "away_team": away,
-                        "snapshot": {
+                    old = ctx.get("data")
+                    if not old:
+                        # No data yet — create minimal skeleton so the frontend
+                        # has something to render until the pipeline runs.
+                        old_snap = {}
+                        old_state = {}
+                        old = {
                             "home_team": home,
                             "away_team": away,
-                            "minute": old_snap.get("minute", 0),
-                            "goals_home": old_snap.get("goals_home", 0),
-                            "goals_away": old_snap.get("goals_away", 0),
-                            "corners_home": old_snap.get("corners_home", 0),
-                            "corners_away": old_snap.get("corners_away", 0),
-                            "yellows_home": old_snap.get("yellows_home", 0),
-                            "yellows_away": old_snap.get("yellows_away", 0),
-                            "reds_home": old_snap.get("reds_home", 0),
-                            "reds_away": old_snap.get("reds_away", 0),
-                            "possession_home": 50,
-                            "event_id": ctx.get("event_id", 0),
-                            "status_text": "inprogress",
-                            "tournament": old_snap.get("tournament", ""),
-                        },
-                        "state": {
-                            "goles_local": old_state.get("goles_local", 0),
-                            "goles_visitante": old_state.get("goles_visitante", 0),
-                            "corners": old_state.get("corners", 0),
-                            "amarillas": old_state.get("amarillas", 0),
-                            "rojas": old_state.get("rojas", 0),
-                            "xg_local": old_state.get("xg_local", 0),
-                            "xg_visitante": old_state.get("xg_visitante", 0),
-                            "faltas": old_state.get("faltas", 0),
-                        },
-                        "result": {
-                            "home_team": home,
-                            "away_team": away,
-                            "markets": old.get("result", {}).get("markets", {}),
-                            "tension_index": old.get("result", {}).get("tension_index", 0),
-                        },
-                        "scraper_ts": time.time(),
-                        "sofascore_ts": old.get("sofascore_ts", 0),
-                        "phase_summary": old.get("phase_summary", ""),
-                    }
+                            "snapshot": {
+                                "home_team": home,
+                                "away_team": away,
+                                "minute": 0,
+                                "goals_home": 0, "goals_away": 0,
+                                "corners_home": 0, "corners_away": 0,
+                                "yellows_home": 0, "yellows_away": 0,
+                                "reds_home": 0, "reds_away": 0,
+                                "possession_home": 50,
+                                "event_id": ctx.get("event_id", 0),
+                                "status_text": "inprogress",
+                                "tournament": "",
+                            },
+                            "state": {
+                                "goles_local": 0, "goles_visitante": 0,
+                                "corners": 0, "amarillas": 0, "rojas": 0,
+                                "xg_local": 0, "xg_visitante": 0, "faltas": 0,
+                            },
+                            "result": {
+                                "home_team": home,
+                                "away_team": away,
+                                "markets": {},
+                                "tension_index": 0,
+                            },
+                            "scraper_ts": time.time(),
+                            "sofascore_ts": 0,
+                            "phase_summary": "",
+                        }
+                        ctx["data"] = old
+                    # Merge market lines into existing data (preserves
+                    # decision, siege_index, lambdas, data_quality, etc.)
                     mkt_key = r["market_name"].lower()
-                    ctx["data"]["result"]["markets"][mkt_key] = {"lines": lines, "source": "betano"}
+                    mkts = old.get("result", {}).get("markets", {})
+                    existing_mkt = mkts.get(mkt_key, {})
+                    existing_mkt["lines"] = lines
+                    existing_mkt["source"] = "betano"
+                    old.setdefault("result", {}).setdefault("markets", {})[mkt_key] = existing_mkt
+                    old["scraper_ts"] = time.time()
                     ctx["force_refresh"] = True
                     if not ctx.get("last_snapshot"):
                         from types import SimpleNamespace
@@ -964,6 +1021,7 @@ async def ingest_betano_overview(payload: dict):
                             "under": best_line["under"],
                             "source_id": "betano",
                             "is_verified": True,
+                            "timestamp": time.time(),
                         }]
                         pf[f"_last_updated_{market_upper}"] = time.time()
                     injected += 1
@@ -1150,7 +1208,7 @@ async def override_match_odds(req: OverrideReq):
                     kelly_fraction=global_state["settings"]["kelly_fraction"],
                     max_stake=1.0
                 )
-                update_match_math(
+                await asyncio.to_thread(update_match_math,
                     ctx,
                     ctx["last_snapshot"],
                     ctx["previous_state"],
@@ -1198,7 +1256,7 @@ async def simulate_match_odds(req: SimulateReq):
                 backup_data = ctx.get("data")
                 
                 # Ejecutamos con ctx real pero markets temporales
-                _, _, _ = update_match_math(
+                _, _, _ = await asyncio.to_thread(update_match_math,
                     ctx,
                     ctx["last_snapshot"],
                     ctx["previous_state"],
@@ -1286,7 +1344,17 @@ async def get_history(limit: int = 50):
                 try:
                     ts = datetime.fromisoformat(record.get("captured_at_utc", "")).timestamp()
                 except Exception:
+                    # Fallback: intentar captured_at_local, luego mtime del archivo
                     ts = 0
+                    try:
+                        local_str = record.get("captured_at_local", "")
+                        if local_str:
+                            ts = datetime.strptime(local_str, "%Y-%m-%d %H:%M:%S").timestamp()
+                    except Exception:
+                        try:
+                            ts = os.path.getmtime(fpath)
+                        except Exception:
+                            pass
 
                 bets_to_process = []
                 
@@ -1297,7 +1365,7 @@ async def get_history(limit: int = 50):
                         if odds is None or odds == 0:
                             _ev = b.get("ev", 0)
                             _prob = b.get("prob", 0)
-                            odds = (_ev / _prob) if _prob > 0 else 0
+                            odds = ((_ev + 1.0) / _prob) if _prob > 0 else 0
                         bets_to_process.append((mkt, b.get("side"), b.get("linea"), odds, stake, b.get("ev")))
                         
                 elif not has_explicit_bets and rt == "snapshot":
@@ -1316,7 +1384,7 @@ async def get_history(limit: int = 50):
                             linea = d.get("linea")
                             _ev = d.get("best_ev", 0)
                             _prob = d.get("best_prob", 0)
-                            odds = (_ev / _prob) if _prob > 0 else 0
+                            odds = ((_ev + 1.0) / _prob) if _prob > 0 else 0
                             mkt = label_map.get(raw_mkt, raw_mkt)
                             bets_to_process.append((mkt, side, linea, odds, stake, _ev))
 
@@ -1696,22 +1764,32 @@ async def _process_extension_frame_async(raw_text: str) -> None:
                 def _fuzzy_match_team(e_home, e_away, ctx_home, ctx_away):
                     if not e_home or not ctx_home:
                         return False
-                    # Tokenizar: dividir en palabras
-                    e_h_tokens = set(e_home.split())
-                    e_a_tokens = set(e_away.split())
-                    c_h_tokens = set(ctx_home.split())
-                    c_a_tokens = set(ctx_away.split())
-
-                    # Match normal: home↔home, away↔away
-                    h_match = len(e_h_tokens & c_h_tokens) >= 1 and (e_home in ctx_home or ctx_home in e_home or len(e_h_tokens & c_h_tokens) >= 2)
-                    a_match = len(e_a_tokens & c_a_tokens) >= 1 and (e_away in ctx_away or ctx_away in e_away or len(e_a_tokens & c_a_tokens) >= 2)
-                    if h_match and a_match:
-                        return True
-
-                    # Match invertido: home↔away, away↔home
-                    h_match_r = len(e_h_tokens & c_a_tokens) >= 1 and (e_home in ctx_away or ctx_away in e_home or len(e_h_tokens & c_a_tokens) >= 2)
-                    a_match_r = len(e_a_tokens & c_h_tokens) >= 1 and (e_away in ctx_home or ctx_home in e_away or len(e_a_tokens & c_h_tokens) >= 2)
-                    return h_match_r and a_match_r
+                    try:
+                        from thefuzz import fuzz
+                        home_direct = max(fuzz.partial_ratio(ctx_home, e_home),
+                                          fuzz.token_sort_ratio(ctx_home, e_home))
+                        away_direct = max(fuzz.partial_ratio(ctx_away, e_away),
+                                          fuzz.token_sort_ratio(ctx_away, e_away))
+                        direct = (home_direct + away_direct) / 2.0
+                        home_rev = max(fuzz.partial_ratio(ctx_home, e_away),
+                                       fuzz.token_sort_ratio(ctx_home, e_away))
+                        away_rev = max(fuzz.partial_ratio(ctx_away, e_home),
+                                       fuzz.token_sort_ratio(ctx_away, e_home))
+                        reverse = (home_rev + away_rev) / 2.0
+                        return max(direct, reverse) >= 70
+                    except ImportError:
+                        # Fallback: token-based
+                        e_h_tokens = set(e_home.split())
+                        e_a_tokens = set(e_away.split())
+                        c_h_tokens = set(ctx_home.split())
+                        c_a_tokens = set(ctx_away.split())
+                        h_match = len(e_h_tokens & c_h_tokens) >= 1 and (e_home in ctx_home or ctx_home in e_home or len(e_h_tokens & c_h_tokens) >= 2)
+                        a_match = len(e_a_tokens & c_a_tokens) >= 1 and (e_away in ctx_away or ctx_away in e_away or len(e_a_tokens & c_a_tokens) >= 2)
+                        if h_match and a_match:
+                            return True
+                        h_match_r = len(e_h_tokens & c_a_tokens) >= 1 and (e_home in ctx_away or ctx_away in e_home or len(e_h_tokens & c_a_tokens) >= 2)
+                        a_match_r = len(e_a_tokens & c_h_tokens) >= 1 and (e_away in ctx_home or ctx_home in e_away or len(e_a_tokens & c_h_tokens) >= 2)
+                        return h_match_r and a_match_r
 
                 ts_now = time.time()
                 matched_count = 0
@@ -2154,9 +2232,16 @@ async def _process_extension_frame_async(raw_text: str) -> None:
                     ))
 
         # ── Recálculo fuera del lock (no bloquea WebSocket ni polling) ──
+        sem = global_state.get("pipeline_semaphore")
         for (ctx, snap, prev_state, raw_mkts, params, prematch) in recalculo_pendiente:
             try:
-                update_match_math(ctx, snap, prev_state, raw_mkts, params, prematch)
+                async def _recalc_with_sem():
+                    if sem:
+                        async with sem:
+                            await asyncio.to_thread(update_match_math, ctx, snap, prev_state, raw_mkts, params, prematch)
+                    else:
+                        await asyncio.to_thread(update_match_math, ctx, snap, prev_state, raw_mkts, params, prematch)
+                asyncio.create_task(_recalc_with_sem())
             except Exception as e:
                 print(f"[EXT WS] Error en recalculo rápido: {e}")
 
@@ -2181,6 +2266,8 @@ class BetLockReq(BaseModel):
     source:      str   = "manual"
     note:        str   = ""
     auto_expire_minutes: int = 90
+    model_prob:  float = 0.0
+    ev_neto:     float = 0.0
 
 class BetLockReleaseReq(BaseModel):
     lock_id: str
@@ -2209,7 +2296,11 @@ async def create_bet_lock(req: BetLockReq):
         source=req.source,
         note=req.note,
         auto_expire_minutes=req.auto_expire_minutes,
+        model_prob=req.model_prob,
+        ev_neto=req.ev_neto,
     )
+    if lock_id is None:
+        raise HTTPException(status_code=423, detail="Lock rejected by control system (PAUSED or EXPOSURE limit)")
     return {"status": "ok", "lock_id": lock_id}
 
 
@@ -2229,6 +2320,37 @@ async def release_match_locks(url: str):
         raise HTTPException(status_code=503, detail="bet_lock module not loaded")
     count = release_all_for_match(url)
     return {"status": "ok", "released": count}
+
+
+# ─── Control System endpoints ────────────────────────────────────────────────────
+
+@app.get("/api/control")
+async def get_control():
+    if not load_control:
+        return {"bot_status": "RUNNING", "min_ev_threshold": 0.08, "max_open_bets_per_match": 2}
+    return load_control()
+
+
+@app.post("/api/control")
+async def update_control(payload: dict):
+    if not save_control:
+        raise HTTPException(status_code=503, detail="bet_lock module not loaded")
+    current = load_control() if load_control else {}
+    for key in ("bot_status", "min_ev_threshold", "max_open_bets_per_match"):
+        if key in payload:
+            current[key] = payload[key]
+    save_control(current)
+    return {"status": "ok", "control": current}
+
+
+# ─── Trade Blotter endpoint ──────────────────────────────────────────────────────
+
+@app.get("/api/trade_blotter")
+async def get_trade_blotter(limit: int = 200):
+    if not read_blotter:
+        return {"blotter": []}
+    return {"blotter": read_blotter(limit)}
+
 
 @app.delete("/api/matches")
 async def remove_match(url: str):

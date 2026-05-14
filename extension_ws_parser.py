@@ -471,15 +471,25 @@ _BETANO_MARKET_KEYWORDS = {
     "goal":   "GOLES",
     "corner": "CORNERS",
     "card":   "TARJETAS",
+    "booking": "TARJETAS",
+    "book":  "TARJETAS",
+    "yellow": "TARJETAS",
     # Espanol (REST /events/{id})
     "gol":    "GOLES",
+    "golo":   "GOLES",
     "esqu":   "CORNERS",
     "córner": "CORNERS",
+    "escanteio": "CORNERS",
     "tarjeta": "TARJETAS",
     "amarilla": "TARJETAS",
     "roja":   "TARJETAS",
     "amonestaci": "TARJETAS",
     "disciplin": "TARJETAS",
+    # Portugues (Brasileirao)
+    "cartão": "TARJETAS",
+    "cartao": "TARJETAS",
+    "cartões": "TARJETAS",
+    "cartoes": "TARJETAS",
 }
 
 # Cache por eventId: {selectionId → {market_name, linea, side}}
@@ -636,8 +646,8 @@ def _populate_betano_caches_from_rest(data: dict) -> None:
                         linea = 0.0
 
             # Detectar side por keywords (siempre, no solo cuando regex matchea)
-            is_over = any(x in sel_name for x in ["over", "más", "mas", "+"])
-            is_under = any(x in sel_name for x in ["under", "menos", "-"])
+            is_over = any(x in sel_name for x in ["over", "más", "mas", "mais", "above", "+"])
+            is_under = any(x in sel_name for x in ["under", "menos", "below", "-"])
             side = "over" if is_over else ("under" if is_under else None)
 
             # Fallback posicional si no se detectó side por keywords
@@ -673,10 +683,23 @@ def _populate_betano_caches_from_rest(data: dict) -> None:
     # print(f"🧠 [CACHE REST] eventId={eid}: {count_mkts} mercados, {count_sels} selecciones cacheadas para ContentHub")
 
 
+_FOOTBALL_SPORTS = {"FOOT", "1", "FOOTBALL", "SOC", "SOCCER", "FUTBOL", "FUTEBOL"}
+
+def _is_football_event(ev: dict) -> bool:
+    sport = str(ev.get("_sport") or ev.get("sportId") or ev.get("sport") or ev.get("sport_id") or "").upper()
+    if not sport:
+        return True
+    return sport in _FOOTBALL_SPORTS
+
+
 def _parse_betano_overview(data: dict) -> list[dict]:
     """Extrae eventos del formato overview/latest o /events/{id} de Betano."""
     results = []
     events_list = None
+
+    # ── Desenvolver wrapper REST { data: {...} } ──
+    if "data" in data and isinstance(data.get("data"), dict) and len(data) == 1:
+        data = data["data"]
 
     # ── Formato de partido UNICO (/events/{id}) ──
     # Betano manda { event: {...}, markets: [...], selections: [...] }
@@ -750,7 +773,13 @@ def _parse_betano_overview(data: dict) -> list[dict]:
             events_list = _find_events_recursive(data)
     
     if not events_list:
-        print(f"⚠️ [BETANO_PARSER] No se encontró lista de eventos en el payload. Keys top-level: {list(data.keys())}")
+        keys = list(data.keys())
+        signalr_keys = {"C", "S", "M", "G", "H", "R", "I", "L", "T"}
+        if keys and set(keys).issubset(signalr_keys):
+            return []
+        if keys == ["s", "r"]:
+            return []
+        print(f"⚠️ [BETANO_PARSER] No se encontró lista de eventos en el payload. Keys top-level: {keys}")
         return []
 
     logger.info(f"✅ [BETANO_PARSER] Detectados {len(events_list)} eventos en payload.")
@@ -768,11 +797,16 @@ def _parse_betano_overview_list(events_list: list, top_selections: dict = None, 
     if top_markets is None:
         top_markets = {}
     results = []
+    filtered_non_football = 0
     for ev in events_list:
         if not isinstance(ev, dict):
             continue
         eid = ev.get("id") or ev.get("eventId")
         if not eid:
+            continue
+
+        if not _is_football_event(ev):
+            filtered_non_football += 1
             continue
 
         # Extraer participantes
@@ -903,7 +937,7 @@ def _parse_betano_overview_list(events_list: list, top_selections: dict = None, 
                     continue
 
                 # Evitamos falsos positivos priorizando palabras completas
-                is_over = any(word in name for word in ["over", "más", "mas", "above"]) or ("+" in name and "over" not in name)
+                is_over = any(word in name for word in ["over", "más", "mas", "mais", "above"]) or ("+" in name and "over" not in name)
                 is_under = any(word in name for word in ["under", "menos", "below"]) or ("-" in name and "under" not in name)
 
                 # Si ambos fallan pero sólo es "1" o "2", a veces Betano asume O/U posicional
@@ -928,10 +962,21 @@ def _parse_betano_overview_list(events_list: list, top_selections: dict = None, 
                     if "menos" in name or "under" in name:
                         lines[linea]["under"] = odds
                 else:
-                    # Fallback final por posición de la cuota/id si no tiene nombre claro
-                    pass
+                    # Fallback posicional para mercados de tarjetas/hándicap sin nombre claro
+                    if internal == "TARJETAS" and odds > 1.0:
+                        if lines.get(linea, {}).get("over", 0) == 0.0:
+                            lines[linea]["over"] = odds
+                        elif lines.get(linea, {}).get("under", 0) == 0.0:
+                            lines[linea]["under"] = odds
 
-            valid_lines = [v for v in sorted(lines.values(), key=lambda x: x["linea"]) if v["over"] > 1.0 and v["under"] > 1.0]
+            valid_lines = [v for v in sorted(lines.values(), key=lambda x: x["linea"])
+                           if (v["over"] > 1.0 or v["under"] > 1.0)]
+            if internal == "TARJETAS" and not [v for v in valid_lines if v["over"] > 1.0 and v["under"] > 1.0]:
+                incomplete = [v for v in sorted(lines.values(), key=lambda x: x["linea"]) if v["over"] > 1.0 or v["under"] > 1.0]
+                if incomplete:
+                    print(f"🃏 [TARJETAS PARCIAL] mkt={mkt_name_raw} lines_incompletas={incomplete} → descartadas (necesitan over Y under)")
+            if valid_lines:
+                valid_lines = [v for v in valid_lines if v["over"] > 1.0 and v["under"] > 1.0]
             if internal == "TARJETAS" and not valid_lines and lines:
                 print(f"🚨 [DROPPED TARJETAS] mkt={mkt_name_raw} lines={lines}")
             if valid_lines:
@@ -944,6 +989,8 @@ def _parse_betano_overview_list(events_list: list, top_selections: dict = None, 
                     "match_url":   str(eid),
                 })
 
+    if filtered_non_football:
+        print(f"🏀 [FILTRO DEPORTE] {filtered_non_football} eventos no-fútbol ignorados (basket/tenis/esports)")
     return results
 
 
@@ -1236,6 +1283,17 @@ def _parse_betano_contenthub_diff(diff: dict, tab_url: str) -> list[dict]:
     if not event_id:
         return []
 
+    # Filtrar diffs de deportes que no sean fútbol
+    try:
+        eid_int = int(event_id)
+        cat_entry = _betano_event_catalog.get(eid_int)
+        if cat_entry:
+            cat_sport = str(cat_entry.get("sport", "")).upper()
+            if cat_sport and cat_sport not in _FOOTBALL_SPORTS:
+                return []
+    except (ValueError, TypeError):
+        pass
+
     # Diagnostico: que tipo de diff estamos recibiendo
     mkt_count = len(payload.get("marketChanges", [])) if isinstance(payload, dict) else 0
     sel_count = len(payload.get("selectionChanges", [])) if isinstance(payload, dict) else 0
@@ -1303,9 +1361,13 @@ def _parse_betano_contenthub_diff(diff: dict, tab_url: str) -> list[dict]:
                 if linea is None or linea == 0.0:
                     continue
 
-                is_over  = any(x in sel_name for x in ["over", "más", "mas", "+"])
-                is_under = any(x in sel_name for x in ["under", "menos", "-"])
+                is_over  = any(x in sel_name for x in ["over", "más", "mas", "mais", "above", "+"])
+                is_under = any(x in sel_name for x in ["under", "menos", "below", "-"])
                 side = "over" if is_over else ("under" if is_under else None)
+                if side is None and sel_name.strip() == "1":
+                    side = "over"
+                elif side is None and sel_name.strip() == "2":
+                    side = "under"
                 # Cachear selección para type=100
                 if sel_id:
                     _betano_selection_cache[event_id][sel_id] = {
@@ -1319,7 +1381,14 @@ def _parse_betano_contenthub_diff(diff: dict, tab_url: str) -> list[dict]:
                     lines[linea][side] = sel_price
 
             valid_lines = [v for v in sorted(lines.values(), key=lambda x: x["linea"])
-                           if v["over"] > 1.0 and v["under"] > 1.0]
+                           if (v["over"] > 1.0 or v["under"] > 1.0)]
+            if internal == "TARJETAS" and valid_lines:
+                complete = [v for v in valid_lines if v["over"] > 1.0 and v["under"] > 1.0]
+                if not complete:
+                    print(f"🃏 [TARJETAS CH] eventId={event_id} lineas_incompletas={valid_lines} → descartadas")
+                    valid_lines = complete
+            else:
+                valid_lines = [v for v in valid_lines if v["over"] > 1.0 and v["under"] > 1.0]
             is_suspended = not is_open or msg_type in (101, 102)
             if valid_lines or is_suspended:
                 results.append({
@@ -1432,8 +1501,8 @@ def _extract_betano_lines(mkt: dict, event_id: Optional[int] = None, internal_na
         if linea not in lines:
             lines[linea] = {"linea": linea, "over": 0.0, "under": 0.0, "is_verified": True}
 
-        is_over = any(x in name for x in ["over", "más", "mas", "mas de", "+"])
-        is_under = any(x in name for x in ["under", "menos", "menos de", "-"])
+        is_over = any(x in name for x in ["over", "más", "mas", "mas de", "mais", "+"])
+        is_under = any(x in name for x in ["under", "menos", "menos de", "below", "-"])
 
         side = None
         if is_over:
@@ -1730,7 +1799,7 @@ def _extract_kambi_lines_full(outcomes: list) -> list[dict]:
         # Determinar side: primero por type (OT_ONE=Over, OT_TWO=Under), luego por label
         otype = str(o.get("type") or "").upper()
         label = str(o.get("label") or "").lower()
-        is_over  = "OT_ONE" in otype or "over" in label or "más" in label
+        is_over  = "OT_ONE" in otype or "over" in label or "más" in label or "mais" in label
         is_under = "OT_TWO" in otype or "under" in label or "menos" in label
 
         if is_over:
@@ -1771,8 +1840,12 @@ def _detect_market_name(text: str, keywords: dict) -> Optional[str]:
     """Detecta el nombre interno del mercado desde un string de texto libre."""
     text_lower = text.lower()
     
-    if "tarjeta" in text_lower:
-        if any(x in text_lower for x in ["roja", "jugador", "equipo", "1er", "1ra", "2da", "mitad", "primera", "segunda"]):
+    if "tarjeta" in text_lower or "card" in text_lower or "cart" in text_lower:
+        # Filtrar props específicas de jugadores o tiempos
+        if any(x in text_lower for x in ["jugador", "equipo", "1er", "1ra", "2da", "mitad", "primera", "segunda"]):
+            return None
+        # Permitir mercados que dicen "rojas valen 2", pero excluir el prop de "Habrá tarjeta roja Sí/No"
+        if "roja" in text_lower and not any(w in text_lower for w in ["total", "más", "mas", "over", "menos", "under", "cuentan", "valen", "x2", "mais"]):
             return None
 
     for kw, name in keywords.items():

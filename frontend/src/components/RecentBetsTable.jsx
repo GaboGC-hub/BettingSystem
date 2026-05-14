@@ -1,63 +1,13 @@
-import { useState, useEffect, useCallback } from 'react'
+import React from 'react'
 
-const API = 'http://localhost:8000/api'
-
-/**
- * RecentBetsTable – tabla de apuestas recientes estilo dashboard de referencia.
- * Carga datos desde /api/history (endpoint de historial de bets).
- * Muestra: Partido, Mercado, Cuota, Stake, EV, P&L, Estado.
- */
-export default function RecentBetsTable({ matches, settings }) {
-  const [history, setHistory] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  const loadHistory = useCallback(async () => {
-    try {
-      const res = await fetch(`${API}/history?limit=20`)
-      if (res.ok) {
-        const data = await res.json()
-        setHistory(data.bets || data || [])
-      } else {
-        // fallback: construir desde matches en memoria
-        setHistory(buildFromMatches(matches, settings))
-      }
-    } catch {
-      setHistory(buildFromMatches(matches, settings))
-    } finally {
-      setLoading(false)
-    }
-  }, [matches, settings])
-
-  useEffect(() => { loadHistory() }, [loadHistory])
-
-  // Refrescar automáticamente cada 30s
-  useEffect(() => {
-    const t = setInterval(loadHistory, 30000)
-    return () => clearInterval(t)
-  }, [loadHistory])
-
-  if (loading) return (
-    <div className="dash-panel recent-bets-panel">
-      <div className="dash-panel-header">
-        <span className="dash-panel-title">Apuestas Recientes</span>
-        <span className="tag tag-gold">Cargando…</span>
-      </div>
-      <div className="recent-bets-empty">Cargando historial…</div>
-    </div>
-  )
+export default function RecentBetsTable({ betHistory, matches, settings }) {
+  const history = betHistory && betHistory.length > 0 ? betHistory : buildFromMatches(matches, settings)
 
   return (
     <div className="dash-panel recent-bets-panel">
       <div className="dash-panel-header">
         <span className="dash-panel-title">Apuestas Recientes</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span className="tag tag-gold">Últimas {history.length}</span>
-          <button
-            className="ctrl-btn"
-            onClick={loadHistory}
-            style={{ padding: '2px 8px', fontSize: '10px' }}
-          >↻</button>
-        </div>
+        <span className="tag tag-gold">Últimas {history.length}</span>
       </div>
 
       {history.length === 0 ? (
@@ -89,8 +39,9 @@ export default function RecentBetsTable({ matches, settings }) {
                 const profitLabel = (bet.profit !== undefined && bet.profit !== null)
                   ? `${bet.profit >= 0 ? '+' : ''}$${bet.profit.toFixed(2)}`
                   : '—'
+                // Heuristic: Old Gross EVs are > 1.0. New Net EVs are capped at 0.30.
                 const evVal = (bet.ev !== undefined && bet.ev !== null) ? bet.ev : null
-                const evPct = evVal !== null ? ((evVal - 1) * 100) : null
+                const evPct = evVal !== null ? (evVal > 0.50 ? (evVal - 1) * 100 : evVal * 100) : null
 
                 return (
                   <tr key={i}>

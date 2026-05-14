@@ -48,7 +48,7 @@ MAX_WORKERS = 8
 RADAR_INTERVAL_SEC = 300          # 5 minutos
 DISPATCH_INTERVAL_SEC = 15        # Revisar la cola cada 15 segundos
 KILL_SWITCH_MINUTES = 130         # Matar workers colgados
-FUZZY_THRESHOLD = 70              # Minimo % de coincidencia para emparejar equipos
+FUZZY_THRESHOLD = 68              # Minimo % de coincidencia para emparejar equipos
 # Chromium requiere forward slashes en rutas de extensiones, incluso en Windows
 CHROME_EXTENSION_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "chrome_extension")
@@ -552,7 +552,9 @@ _NOISE_WORDS = {
     "fc", "cf", "ac", "sc", "rc", "cd", "sd", "ud", "rcd", "afc",
     "city", "united", "sporting", "club", "de", "do",
     "da", "del", "the", "real", "racing",
-    # NOTA: "atletico" NO es ruido — es parte del nombre (Atlético Madrid, Atlético Junior)
+    "athletic", "wanderers", "town", "county", "albion", "rovers",
+    "wolves", "rangers", "forest", "villa", "hotspur", "crystal",
+    "palace", "argyle", "borough", "orient", "vale", "wycombe",
 }
 
 def _normalize(name: str) -> str:
@@ -565,6 +567,9 @@ def _normalize(name: str) -> str:
     ascii_name = nfkd.encode("ascii", "ignore").decode("ascii")
     import re as _re2
     clean = _re2.sub(r"[^a-z0-9\s]", " ", ascii_name.lower())
+    # Expandir siglas comunes para mejorar matching
+    clean = clean.replace(" rsc ", " ").replace(" rcd ", " ")
+    clean = clean.replace(" esp ", " espanol ").replace(" dep ", " deportivo ")
     tokens = [t for t in clean.split() if t not in _NOISE_WORDS and len(t) > 1]
     return " ".join(tokens).strip()
 
@@ -654,6 +659,35 @@ def fuzzy_match_betano(
         }
         _save_synonyms(syns)
         return best_match
+    
+    # ── Second chance: intentar con solo la ultima palabra significativa ──
+    if best_score >= FUZZY_THRESHOLD - 10:
+        nh_tokens = norm_home.split()
+        na_tokens = norm_away.split()
+        last_home = nh_tokens[-1] if nh_tokens else ""
+        last_away = na_tokens[-1] if na_tokens else ""
+        if last_home and last_away:
+            for eid, bev in betano_events.items():
+                b_home = _normalize(bev.get("home", ""))
+                b_away = _normalize(bev.get("away", ""))
+                bh_tokens = b_home.split()
+                ba_tokens = b_away.split()
+                last_bh = bh_tokens[-1] if bh_tokens else ""
+                last_ba = ba_tokens[-1] if ba_tokens else ""
+                if (last_home == last_bh and last_away == last_ba) or \
+                   (last_home == last_ba and last_away == last_bh):
+                    log.info(f"  🎯 [LAST-WORD MATCH] '{sofa_home}' vs '{sofa_away}' → '{bev.get('home','')}' vs '{bev.get('away','')}' (score={best_score:.0f}%)")
+                    syns = _load_synonyms()
+                    key = f"{_normalize(sofa_home)}|{_normalize(sofa_away)}"
+                    syns[key] = {
+                        "betano_home": bev.get("home", ""),
+                        "betano_away": bev.get("away", ""),
+                        "betano_eid": bev.get("id"),
+                        "url": bev.get("url", ""),
+                        "score": int(best_score)
+                    }
+                    _save_synonyms(syns)
+                    return bev
     
     # Imprimir error solo una vez al final
     log.info(f"  Sin Match: '{sofa_home}' vs '{sofa_away}' (mejor: '{best_candidate[0]}' vs '{best_candidate[1]}' = {best_score:.0f}%)")
@@ -1087,10 +1121,24 @@ class WorkerSlot:
             pending_match = await state.get_pending()
             
             if pending_match:
-                # Hay hambre: liberamos para rotación (Round-Robin) tras 15s
-                if active_sec >= 15:
-                    log.info(f"  [RR-BETANO] Worker {self.worker_id}: Starvation detectada (Pendiente: {pending_match.home_team}). Liberando slot.")
-                    break
+                # ── STAGGERED RELEASE: solo libera si este worker es el más viejo ──
+                # Esto previene que todos los workers se cierren al mismo tiempo
+                # cuando detectan starvation. Solo 1 se libera por ciclo.
+                async with state._lock:
+                    active_entries = [
+                        e for e in state._matches.values()
+                        if e.status == MatchStatus.EN_CURSO and e.start_time > 0
+                    ]
+                if active_entries:
+                    oldest_match_id = min(active_entries, key=lambda e: e.start_time).match_id
+                    if self.match_id == oldest_match_id and active_sec >= 15:
+                        log.info(
+                            f"  [RR-BETANO] Worker {self.worker_id}: Starvation detectada "
+                            f"(Pendiente: {pending_match.home_team}). "
+                            f"Soy el más viejo ({active_sec:.0f}s). Liberando slot."
+                        )
+                        break
+                    # No soy el más viejo: sigo retenido, el más viejo se libera primero
             else:
                 # No hay hambre: el worker se queda reteniendo la conexión viva, evitando fallbacks "Dummy"
                 pass

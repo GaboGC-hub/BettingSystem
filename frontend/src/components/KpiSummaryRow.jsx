@@ -1,7 +1,5 @@
 import { useMemo } from 'react'
 
-const API = 'http://localhost:8000/api'
-
 /**
  * KpiSummaryRow – fila de 5 KPI cards calculados desde los datos LIVE del backend.
  * Reemplaza los KPIs planos del topbar con la versión grande del dashboard de referencia.
@@ -22,15 +20,21 @@ export default function KpiSummaryRow({ matches, settings }) {
           totalBets++
           const stakeUsd = (dec.best_stake || 0) * (settings?.bankroll || 1000)
           totalExposure += stakeUsd
-          if (dec.best_ev) { totalEv += dec.best_ev; evCount++ }
-          // Si EV > 1 el modelo cree que es ganadora
-          if ((dec.best_ev || 0) > 1) totalWins++
+          if (dec.best_ev) { 
+            // Backward compatibility heuristic
+            const netEv = dec.best_ev > 0.50 ? dec.best_ev - 1.0 : dec.best_ev;
+            totalEv += netEv; 
+            evCount++ 
+            
+            // Si EV Neto > 0 el modelo cree que es ganadora
+            if (netEv > 0) totalWins++
+          }
         }
       }
     }
 
     const winRate = totalBets > 0 ? (totalWins / totalBets * 100) : null
-    const avgEv   = evCount > 0 ? ((totalEv / evCount - 1) * 100) : null
+    const avgEv   = evCount > 0 ? ((totalEv / evCount) * 100) : null
     const activeMatches = Object.values(matches).filter(d => !d?.ended).length
 
     return { totalBets, winRate, avgEv, totalExposure, activeSignals, activeMatches }

@@ -1129,6 +1129,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .dashboard-shell {
   flex: 1; overflow: hidden;
   display: flex; flex-direction: column;
+  min-height: 0;
 }
 
 /* KPI strip: 5 cards across the top */
@@ -1139,11 +1140,19 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   border-bottom: 1px solid var(--hard-border);
 }
 
+/* Command Center wrapper */
+.command-center-wrapper {
+  flex-shrink: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Main grid: matches | alerts */
 .dashboard-main {
   flex: 1; overflow: hidden;
   display: grid;
   grid-template-columns: 1fr var(--sidebar-w);
+  min-height: 0;
 }
 .dashboard-main.is-empty {
   grid-template-columns: 1fr var(--sidebar-w);
@@ -1180,6 +1189,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   overflow-y: auto;
   display: flex; flex-direction: column;
   border-right: 1px solid var(--hard-border);
+  min-height: 0;
 }
 
 /* BOTTOM: Analytics panels */
@@ -1337,3 +1347,171 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .proactive-legend .dot.a-gold { background: var(--gold, var(--accent-yellow)); }
 .proactive-legend .dot.a-red { background: var(--accent-red); }
 .proactive-legend .dot.a-cyan { background: var(--accent-cyan); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ENHANCED UI — visual polish layer
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Body: subtle grid texture ───────────────────────── */
+body {
+  background-image:
+    linear-gradient(rgba(201,168,76,0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,168,76,0.018) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: center center;
+}
+
+/* ── Staggered card entrance ──────────────────────────── */
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.matches-grid .match-card {
+  animation: cardEnter 0.35s ease-out backwards;
+}
+.matches-grid .match-card:nth-child(1) { animation-delay: 0.00s; }
+.matches-grid .match-card:nth-child(2) { animation-delay: 0.06s; }
+.matches-grid .match-card:nth-child(3) { animation-delay: 0.12s; }
+.matches-grid .match-card:nth-child(4) { animation-delay: 0.18s; }
+.matches-grid .match-card:nth-child(5) { animation-delay: 0.24s; }
+.matches-grid .match-card:nth-child(6) { animation-delay: 0.30s; }
+.matches-grid .match-card:nth-child(7) { animation-delay: 0.36s; }
+.matches-grid .match-card:nth-child(8) { animation-delay: 0.42s; }
+
+/* ── Card hover: subtle lift + glow ───────────────────── */
+.match-card {
+  transition: border-color 0.25s, box-shadow 0.25s, transform 0.2s ease;
+}
+.match-card:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(201,168,76,0.12),
+    0 6px 24px rgba(0,0,0,0.18),
+    0 1px 3px rgba(0,0,0,0.08);
+}
+.match-card.has-signal:hover {
+  box-shadow:
+    0 0 0 1px rgba(14,203,129,0.25),
+    0 6px 32px rgba(14,203,129,0.1),
+    0 1px 4px rgba(0,0,0,0.1);
+}
+
+/* ── Glass card background ────────────────────────────── */
+.match-card {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  background: linear-gradient(
+    135deg,
+    var(--bg-card) 0%,
+    color-mix(in srgb, var(--bg-card) 92%, var(--gold) 8%) 100%
+  );
+}
+
+/* ── Enhanced live dot ────────────────────────────────── */
+.dot.live {
+  box-shadow: 0 0 6px rgba(14,203,129,0.7), 0 0 12px rgba(14,203,129,0.3);
+}
+@keyframes dot-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
+
+/* ── Gold shimmer on active signal cards ──────────────── */
+@keyframes goldShimmer {
+  0%   { border-color: var(--accent-green); }
+  25%  { border-color: color-mix(in srgb, var(--accent-green) 80%, var(--gold) 20%); }
+  50%  { border-color: var(--accent-green); }
+  75%  { border-color: color-mix(in srgb, var(--accent-green) 85%, var(--gold) 15%); }
+  100% { border-color: var(--accent-green); }
+}
+.match-card.has-signal {
+  animation: goldShimmer 3s ease-in-out infinite;
+}
+
+/* ── Smooth panel transitions ─────────────────────────── */
+.signal-detail-panel {
+  animation: panelExpand 0.15s ease-out;
+}
+@keyframes panelExpand {
+  from { opacity: 0; max-height: 0; }
+  to   { opacity: 1; max-height: 600px; }
+}
+
+/* ── Signal row hover polish ──────────────────────────── */
+.signal-row.active:hover:not(.bet-locked) {
+  filter: brightness(1.06);
+}
+.signal-row.nobet:hover {
+  background: rgba(201,168,76,0.03);
+}
+.signal-row { transition: filter 0.15s, background 0.15s; }
+
+/* ── Bet lock banner shimmer ──────────────────────────── */
+@keyframes lockPulse {
+  0%, 100% { border-left-color: var(--accent-green); }
+  50% { border-left-color: color-mix(in srgb, var(--accent-green) 60%, var(--gold) 40%); }
+}
+.bet-lock-banner {
+  animation: lockPulse 2.5s ease-in-out infinite;
+}
+
+/* ── Button hover glow ────────────────────────────────── */
+button:not(.secondary):not(.xs):not(.ctrl-btn):not(.view-toggle):hover {
+  box-shadow: 0 0 12px rgba(201,168,76,0.25);
+}
+button.secondary:hover { background: rgba(201,168,76,0.1); }
+.bet-lock-btn.place:not(:disabled):hover {
+  box-shadow: 0 0 14px rgba(14,203,129,0.3);
+  transform: scale(1.02);
+}
+.bet-lock-btn { transition: transform 0.12s, box-shadow 0.15s; }
+
+/* ── Topbar glass ─────────────────────────────────────── */
+.topbar {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  background: linear-gradient(180deg,
+    rgba(19,22,30,0.97) 0%,
+    rgba(19,22,30,0.93) 100%);
+}
+
+/* ── Connection pill animated ─────────────────────────── */
+.connection-pill.ok {
+  animation: connPulse 3s ease-in-out infinite;
+}
+@keyframes connPulse {
+  0%, 100% { border-color: rgba(14,203,129,0.3); }
+  50% { border-color: rgba(14,203,129,0.55); }
+}
+
+/* ── Scoreboard team emphasis ─────────────────────────── */
+.team-goal {
+  position: relative;
+}
+.team-goal::after {
+  content: '';
+  position: absolute;
+  inset: -4px -8px;
+  border-radius: 6px;
+  background: rgba(201,168,76,0.05);
+  z-index: -1;
+}
+
+/* ── Light theme body grid adjustment ─────────────────── */
+:root[data-theme="light"] body {
+  background-image:
+    linear-gradient(rgba(139,90,20,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139,90,20,0.025) 1px, transparent 1px);
+}
+
+/* ── Responsive: mobile polish ────────────────────────── */
+@media (max-width: 800px) {
+  .matches-grid {
+    grid-template-columns: 1fr;
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+  .match-card { border-radius: 6px; }
+  .topbar { padding: 0 0.6rem; gap: 0.5rem; }
+}

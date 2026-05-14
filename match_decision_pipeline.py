@@ -320,7 +320,7 @@ def apply_sniper_lock(decision, market_name, mkt, ctx, state):
 # ---------------------------------------------------------------------------
 
 def evaluate_market(m_name, lambda_val, actual_total, ctx, base_markets, params, state,
-                    faro_stale_seconds=45, scraper_log=None, kill_switch_active=False):
+                    scraper_log=None, kill_switch_active=False):
     best_decision = None
     best_m_line = None
     current_max_ev = -1.0
@@ -379,18 +379,6 @@ def evaluate_market(m_name, lambda_val, actual_total, ctx, base_markets, params,
     # Ordenar: La "Línea Principal" (menor spread) va primero.
     overrides_list = sorted(overrides_list, key=lambda x: abs(x["over"] - x["under"]))
 
-    pinnacle_ever_active = bool(ctx.get("pinnacle_fair"))
-    scraper_ts_global = float(ctx.get("scraper_ts") or 0)
-    ts_market = float(
-        ctx.get("pinnacle_fair", {}).get(f"_last_updated_{m_name}", 0) or scraper_ts_global
-    )
-    now_ts = time.time()
-    pinnacle_stale = (
-        pinnacle_ever_active
-        and ts_market > 0
-        and (now_ts - ts_market) > faro_stale_seconds
-    )
-
     # Constantes de proximidad por mercado
     _PROX = {"GOLES": 4.0, "CORNERS": 7.0, "TARJETAS": 6.0}
     _max_dist = _PROX.get(m_name, 5.0)
@@ -432,7 +420,7 @@ def evaluate_market(m_name, lambda_val, actual_total, ctx, base_markets, params,
 
         # ── Filtro de Frescura de la Cuota (Freeze Protection con TTL Dinámico) ──
         is_volatile = getattr(state, "ventana_reciente_min", 0) > 0 or getattr(state, "corners_recientes", 0) > 0
-        max_ttl = 40 if is_volatile else 15
+        max_ttl = 90 if is_volatile else 180
 
         edad_cuota = time.time() - line_data.get("timestamp", 0)
         if edad_cuota > max_ttl and line_data.get("timestamp", 0) > 0:
@@ -483,50 +471,34 @@ def evaluate_market(m_name, lambda_val, actual_total, ctx, base_markets, params,
         if not sanity_ok:
             decision = no_bet_decision(decision, sanity_msg)
         else:
-            # ── MODO CAUTELOSO: Faro Apagado para TARJETAS ─────────────────────
-            if m_name == "TARJETAS" and pinnacle_ever_active and not pf_list:
+            # ── BETANO como fuente primaria: solo bloquear si no hay cuotas ──
+            if not has_real_override and not pf_list:
                 decision = no_bet_decision(
                     decision,
-                    "FARO APAGADO: Pinnacle no ofrece tarjetas para este partido. "
-                    "Sin referencia sharp → abortando apuesta de tarjetas.",
+                    f"SIN CUOTAS: Betano no tiene {m_name} para este partido.",
                 )
 
-            # ── SAFE MODE: Faro de ESTE mercado con lag > umbral ───────────
-            if pinnacle_stale:
-                lag_s = int(now_ts - ts_market)
+            decision = apply_market_guardrails(m_name, decision, state, params, ctx.get("odds_history"))
+            decision = apply_circuit_breaker(decision, m_name, ctx, actual_total)
+            decision = apply_exposure_limit(decision, m_name, ctx)
+            decision = apply_cooldown_lock(decision, m_name, ctx)
+            decision = apply_pinnacle_fair_price(decision, m_name, pf_list, m_line)
+
+            # Filtro de Riesgo/Recompensa
+            if decision.best_side == "OVER" and m_line.over < 1.25:
+                decision = no_bet_decision(decision, f"⚠️ Cuota OVER muy baja ({m_line.over} < 1.25)")
+            elif decision.best_side == "UNDER" and m_line.under < 1.25:
+                decision = no_bet_decision(decision, f"⚠️ Cuota UNDER muy baja ({m_line.under} < 1.25)")
+
+            # Sanity Check del Edge
+            cand_ev = decision.best_ev if decision.best_side != "NO BET" else 0.0
+            if cand_ev > 3.0:
                 decision = no_bet_decision(
                     decision,
-                    f"⏱️ SAFE MODE ({m_name}): Faro con {lag_s}s de lag (máx {faro_stale_seconds}s). "
-                    "Kelly/stake en 0 hasta actualización.",
+                    f"⚠️ SANITY CHECK: EV absurdo ({cand_ev:.2f} > 3.0). Datos corruptos.",
                 )
 
-            # Validación de Línea (Faro Pinnacle Estricto)
-            if pf_list and not pf_match:
-                decision = no_bet_decision(decision, "🔒 Esta línea exacta NO existe en Pinnacle (Espejo Fallido).")
-            else:
-                decision = apply_market_guardrails(m_name, decision, state, params, ctx.get("odds_history"))
-                decision = apply_circuit_breaker(decision, m_name, ctx, actual_total)
-                decision = apply_exposure_limit(decision, m_name, ctx)
-                decision = apply_cooldown_lock(decision, m_name, ctx)
-                decision = apply_pinnacle_fair_price(decision, m_name, pf_list, m_line)
-                if m_name == "TARJETAS":
-                    decision = apply_pinnacle_lag_sniffer(decision, m_name, ctx)
-
-                # Filtro de Riesgo/Recompensa
-                if decision.best_side == "OVER" and m_line.over < 1.25:
-                    decision = no_bet_decision(decision, f"⚠️ Cuota OVER muy baja ({m_line.over} < 1.25)")
-                elif decision.best_side == "UNDER" and m_line.under < 1.25:
-                    decision = no_bet_decision(decision, f"⚠️ Cuota UNDER muy baja ({m_line.under} < 1.25)")
-
-                # Sanity Check del Edge
-                cand_ev = decision.best_ev if decision.best_side != "NO BET" else 0.0
-                if cand_ev > 3.0:
-                    decision = no_bet_decision(
-                        decision,
-                        f"⚠️ SANITY CHECK: EV absurdo ({cand_ev:.2f} > 3.0). Datos corruptos.",
-                    )
-
-                decision = apply_kill_switch(decision, kill_switch_active)
+            decision = apply_kill_switch(decision, kill_switch_active)
 
         cand_ev = decision.best_ev if decision.best_side != "NO BET" else 0.0
 
@@ -577,7 +549,7 @@ def evaluate_market(m_name, lambda_val, actual_total, ctx, base_markets, params,
 # ---------------------------------------------------------------------------
 
 def run_decision_pipeline(ctx, snapshot, state, base_markets, params, prematch,
-                          backend_args, faro_stale_seconds=45,
+                          backend_args,
                           is_locked_fn=None, sanitize_fn=None, scraper_log=None):
     print(f"🎯 [TRACER START] run_decision_pipeline invocado para minuto {getattr(state, 'minuto', '?')}")
 
@@ -598,19 +570,19 @@ def run_decision_pipeline(ctx, snapshot, state, base_markets, params, prematch,
     goals_decision, g_mkt = evaluate_market(
         "GOLES", result.lambda_goals, state.goles_local + state.goles_visitante,
         ctx, base_markets, params, state,
-        faro_stale_seconds=faro_stale_seconds, scraper_log=scraper_log,
+        scraper_log=scraper_log,
         kill_switch_active=kill_switch_active,
     )
     corners_decision, c_mkt = evaluate_market(
         "CORNERS", result.lambda_corners, state.corners,
         ctx, base_markets, params, state,
-        faro_stale_seconds=faro_stale_seconds, scraper_log=scraper_log,
+        scraper_log=scraper_log,
         kill_switch_active=kill_switch_active,
     )
     cards_decision, t_mkt = evaluate_market(
         "TARJETAS", result.lambda_cards, state.amarillas + (state.rojas * 2),
         ctx, base_markets, params, state,
-        faro_stale_seconds=faro_stale_seconds, scraper_log=scraper_log,
+        scraper_log=scraper_log,
         kill_switch_active=kill_switch_active,
     )
 
@@ -698,11 +670,8 @@ def run_decision_pipeline(ctx, snapshot, state, base_markets, params, prematch,
     for _mn in ("GOLES", "CORNERS", "TARJETAS"):
         _t = float(_pf.get(f"_last_updated_{_mn}", 0) or scraper_ts_val or 0)
         _lag = int(_now - _t) if _t > 0 else None
-        _st = pinnacle_active and _t > 0 and (_now - _t) > faro_stale_seconds
-        faro_pulse[_mn] = {"lag_s": _lag, "stale": _st}
-    pinnacle_stale_flag = pinnacle_active and any(
-        faro_pulse[m]["stale"] for m in faro_pulse
-    )
+        faro_pulse[_mn] = {"lag_s": _lag}
+    pinnacle_stale_flag = pinnacle_active
     touches_real = (
         state_dict.get("touches_in_box_home", 0) +
         state_dict.get("touches_in_box_away", 0)
@@ -721,7 +690,6 @@ def run_decision_pipeline(ctx, snapshot, state, base_markets, params, prematch,
             "touches_away": state_dict.get("touches_in_box_away", 0),
             "pinnacle_active": pinnacle_active,
             "pinnacle_stale": pinnacle_stale_flag,
-            "faro_stale_seconds": faro_stale_seconds,
             "faro_pulse": faro_pulse,
             "scraper_lag_s": int(_now - scraper_ts_val) if scraper_ts_val else None,
             "raw_over_goles":    g_dict.get("raw_over"),

@@ -5,8 +5,11 @@ import KpiSummaryRow from './components/KpiSummaryRow'
 import PnlChart from './components/PnlChart'
 import RecentBetsTable from './components/RecentBetsTable'
 import KellyCalculator from './components/KellyCalculator'
-
-const API = 'http://localhost:8000/api'
+import CommandCenter from './components/CommandCenter'
+import ErrorBoundary from './components/ErrorBoundary'
+import { fetchMatches, fetchHistory, fetchSettings, saveSettings, addMatch, removeMatch, setScraperUrls as saveScraperUrls } from './services/api'
+import { POLL_INTERVAL_MS, HISTORY_POLL_INTERVAL_MS } from './constants'
+import useFeed from './hooks/useFeed'
 
 const formatTime = (ts) => {
   const d = new Date(ts * 1000)
@@ -23,22 +26,12 @@ const formatRelativeSync = (ms) => {
   return `hace ${Math.floor(m / 60)}h`
 }
 
-const CRITICAL_TYPES = ['bet-signal', 'goal-event', 'red-card', 'circuit-break', 'smart-money']
-
-function useFeed() {
-  const [feed, setFeed] = useState([])
-  const addEntry = useCallback((icon, msg, type = 'info') => {
-    const entry = { id: Date.now() + Math.random(), icon, msg, type, ts: Date.now() / 1000 }
-    setFeed(prev => [entry, ...prev].slice(0, 120))
-  }, [])
-  const clearFeed = useCallback(() => setFeed([]), [])
-  return { feed, addEntry, clearFeed }
-}
-
 const isMacLike = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
 
 const LS_THEME = 'evfl-theme'
 const LS_DENSITY = 'evfl-density'
+
+const CRITICAL_TYPES = ['bet-signal', 'goal-event', 'red-card', 'circuit-break', 'smart-money']
 
 export default function App() {
   const [matches, setMatches] = useState({})
@@ -54,6 +47,7 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isAddingMatch, setIsAddingMatch] = useState(false)
   const [pnlHistory, setPnlHistory] = useState([])
+  const [betHistory, setBetHistory] = useState([])
   const [theme, setTheme] = useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem(LS_THEME)) || 'dark')
   const [density, setDensity] = useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem(LS_DENSITY)) || 'comfortable')
   const { feed, addEntry, clearFeed } = useFeed()
@@ -65,12 +59,12 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    try { localStorage.setItem(LS_THEME, theme) } catch (e) {}
+    try { localStorage.setItem(LS_THEME, theme) } catch { /* ok */ }
   }, [theme])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-density', density)
-    try { localStorage.setItem(LS_DENSITY, density) } catch (e) {}
+    try { localStorage.setItem(LS_DENSITY, density) } catch { /* ok */ }
   }, [density])
 
   const allResults = Object.values(matches).filter(d => d?.result?.markets)
@@ -137,48 +131,44 @@ export default function App() {
     }
   }, [addEntry, settings.bankroll])
 
-  const fetchMatches = useCallback(async () => {
+  const loadMatches = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/matches`)
-      if (!res.ok) throw new Error('HTTP')
-      const data = await res.json()
+      const data = await fetchMatches()
       setApiOk(true)
       setLastSyncMs(Date.now())
       setMatches(prev => {
         detectChanges(prev, data)
         return data
       })
-    } catch (e) {
+    } catch {
       setApiOk(false)
     }
   }, [detectChanges])
 
-  const fetchPnlHistory = useCallback(async () => {
+  const loadPnlHistory = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/history?limit=200`)
-      if (res.ok) {
-        const data = await res.json()
-        const bets = data.bets || data || []
-        const normalized = bets
-          .filter(b => b.profit !== undefined)
-          .map(b => ({
-            ts: b.ts ? b.ts * 1000 : Date.now(),
-            profit: b.profit || 0,
-            stake: b.stake || 0,
-          }))
-        setPnlHistory(normalized)
-      }
+      const data = await fetchHistory(200)
+      const bets = data.bets || data || []
+      setBetHistory(bets.filter(b => b.resultado))
+      const normalized = bets
+        .filter(b => b.profit !== undefined)
+        .map(b => ({
+          ts: b.ts && b.ts > 0 ? b.ts * 1000 : null,
+          profit: b.profit || 0,
+          stake: b.stake || 0,
+        }))
+      setPnlHistory(normalized)
     } catch { /* silencioso */ }
   }, [])
 
   useEffect(() => {
-    fetchSettings()
-    fetchMatches()
-    fetchPnlHistory()
-    const interval = setInterval(fetchMatches, 2500)
-    const histInterval = setInterval(fetchPnlHistory, 60000)
+    loadSettings()
+    loadMatches()
+    loadPnlHistory()
+    const interval = setInterval(loadMatches, POLL_INTERVAL_MS)
+    const histInterval = setInterval(loadPnlHistory, HISTORY_POLL_INTERVAL_MS)
     return () => { clearInterval(interval); clearInterval(histInterval) }
-  }, [fetchMatches, fetchPnlHistory])
+  }, [loadMatches, loadPnlHistory])
 
   useEffect(() => {
     const onKey = (e) => {
@@ -192,18 +182,17 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const fetchSettings = async () => {
+  const loadSettings = async () => {
     try {
-      const res = await fetch(`${API}/settings`)
-      setSettings(await res.json())
-    } catch (e) { setApiOk(false) }
+      setSettings(await fetchSettings())
+    } catch { /* silencioso */ }
   }
 
   const updateSettings = async (s) => {
     try {
-      await fetch(`${API}/settings`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(s) })
+      await saveSettings(s)
       setSettings(s)
-    } catch (e) {}
+    } catch { /* noop */ }
   }
 
   const handleAddMatch = async (e) => {
@@ -211,27 +200,23 @@ export default function App() {
     if (!newUrl.trim() || isAddingMatch) return
     setIsAddingMatch(true)
     try {
-      await fetch(`${API}/matches`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: newUrl.trim() }) })
+      await addMatch(newUrl.trim())
       addEntry('📡', `Monitoreando: ${newUrl.trim().split('#')[0].split('/').slice(-2).join('/')}`, 'info')
 
       const hasScraperUrls = Object.values(scraperUrls).some(v => v.trim())
       if (hasScraperUrls) {
         try {
-          await fetch(`${API}/matches/scraper`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: newUrl.trim(), scrapers: scraperUrls })
-          })
+          await saveScraperUrls({ url: newUrl.trim(), scrapers: scraperUrls })
           handleScraperAttached(newUrl.trim(), scraperUrls)
           addEntry('🕷️', `Scrapers lanzados automáticamente → [${Object.keys(scraperUrls).filter(k => scraperUrls[k]).join(', ')}]`, 'scraper')
-        } catch (se) {
+        } catch {
           addEntry('⚠️', 'Partido agregado, pero scrapers fallaron al iniciar.', 'circuit-break')
         }
       }
 
       setNewUrl('')
-      fetchMatches()
-    } catch (err) {
+      loadMatches()
+    } catch {
       addEntry('⚠️', 'No se pudo agregar el partido (¿API arriba?)', 'circuit-break')
     } finally {
       setIsAddingMatch(false)
@@ -240,16 +225,16 @@ export default function App() {
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true)
-    await fetchMatches()
+    await loadMatches()
     setTimeout(() => setIsRefreshing(false), 400)
   }
 
   const handleRemoveMatch = async (url) => {
     try {
-      await fetch(`${API}/matches?url=${encodeURIComponent(url)}`, { method:'DELETE' })
+      await removeMatch(url)
       setScraperMeta(prev => { const n = {...prev}; delete n[url]; return n })
-      fetchMatches()
-    } catch (e) {}
+      loadMatches()
+    } catch { /* noop */ }
   }
 
   const handleScraperAttached = (url, sources) => {
@@ -403,29 +388,28 @@ export default function App() {
           {!hasMatches ? (
             /* CENTER STAGE (Empty state replacement) */
             <div className="dashboard-center-col">
-              <div className="center-col-header">
-                {renderUrlBar()}
-                <p className="url-bar-help">Backend en <code className="inline-code">localhost:8000</code>. Ingresa un partido para comenzar a monitorear.</p>
-              </div>
               <div className="dashboard-empty-analytics">
                 <PnlChart pnlHistory={pnlHistory} />
-                <RecentBetsTable matches={matches} settings={settings} />
+                <RecentBetsTable betHistory={betHistory} matches={matches} settings={settings} />
               </div>
             </div>
           ) : (
             <>
               {/* LEFT & BOTTOM: Partidos en vivo y Analytics */}
               <div className="dashboard-matches-col">
+                <CommandCenter />
                 {renderUrlBar()}
                 <div className="matches-grid">
                   {Object.entries(matches).map(([url, data]) => (
-                    <MatchCard
-                      key={url} url={url} data={data} settings={settings}
-                      onRemove={handleRemoveMatch}
-                      onScraperAttached={handleScraperAttached}
-                      onScraperUpdate={handleScraperUpdate}
-                      scraperMeta={scraperMeta[url]}
-                    />
+                    <ErrorBoundary key={url}>
+                      <MatchCard
+                        url={url} data={data} settings={settings}
+                        onRemove={handleRemoveMatch}
+                        onScraperAttached={handleScraperAttached}
+                        onScraperUpdate={handleScraperUpdate}
+                        scraperMeta={scraperMeta[url]}
+                      />
+                    </ErrorBoundary>
                   ))}
                 </div>
                 
@@ -435,7 +419,7 @@ export default function App() {
                     <PnlChart pnlHistory={pnlHistory} />
                   </div>
                   <div className="analytics-table">
-                    <RecentBetsTable matches={matches} settings={settings} />
+                    <RecentBetsTable betHistory={betHistory} matches={matches} settings={settings} />
                   </div>
                   <div className="analytics-kelly">
                     <KellyCalculator settings={settings} />

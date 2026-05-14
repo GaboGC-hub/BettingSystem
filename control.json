@@ -1,0 +1,5 @@
+{
+  "bot_status": "RUNNING",
+  "min_ev_threshold": 0.08,
+  "max_open_bets_per_match": 3
+}

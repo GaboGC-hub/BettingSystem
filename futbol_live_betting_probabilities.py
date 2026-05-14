@@ -1478,9 +1478,9 @@ def run_model(
     touches_area = state.touches_in_box_home + state.touches_in_box_away
     ocasiones_falladas = state.big_chances_missed_home + state.big_chances_missed_away
 
-    # Si hay TIB en la data, lo usamos como un bono de "penetración profunda" (Mayor peso ahora: x0.4)
-    tib_bonus_home = max(0.0, state.touches_in_box_home - (params.siege_touch_threshold / 2)) * 0.4
-    tib_bonus_away = max(0.0, state.touches_in_box_away - (params.siege_touch_threshold / 2)) * 0.4
+    # Si hay TIB en la data, lo usamos como un bono de "penetración profunda" (Peso reducido a x0.15 para evitar sobre-estimación)
+    tib_bonus_home = max(0.0, state.touches_in_box_home - (params.siege_touch_threshold / 2)) * 0.15
+    tib_bonus_away = max(0.0, state.touches_in_box_away - (params.siege_touch_threshold / 2)) * 0.15
 
     # El SIEGE base ahora usa: (Ataques Peligrosos / Minuto) * Posesión
     current_min = max(1.0, state.minuto)
@@ -1533,7 +1533,7 @@ def run_model(
     if state.minuto >= 75.0 and abs(state.goles_local - state.goles_visitante) == 1:
         # Inyección del pico exponencial desde min 75 hasta fin del partido
         # Limitado (clamp) por seguridad para evitar infinito estadístico en alargues extremos
-        late_panic_boost = clamp(math.exp((state.minuto - 75.0) * 0.08), 1.0, 4.5)
+        late_panic_boost = 1.0 + clamp((state.minuto - 75.0) * 0.05, 0.0, 0.75)
         base_genetic *= late_panic_boost
 
     goal_rate = (
@@ -1555,22 +1555,22 @@ def run_model(
     tightrope_goal_boost = clamp(1.0 + defensive_yel * 0.15, 1.0, 1.35)   # Techo 35% con 2+ amarillos
     tightrope_corner_boost = clamp(1.0 + defensive_yel * 0.10, 1.0, 1.25) # Techo 25%
 
-    # --- MODELO ADITIVO (GOLES) ---
+    # --- MODELO MULTIPLICATIVO (GOLES) ---
     base_goals = goal_rate * remaining_minutes * params.goal_multiplier
-    momentum_goals = 0.0
+    momentum_mult = 1.0
     
     if trailing_team_boost > 1.0:
-        momentum_goals += 0.15
+        momentum_mult += 0.15
     if possession_pressure > 1.0:
-        momentum_goals += 0.10
+        momentum_mult += 0.10
     if urgency_factor > 1.0:
-        momentum_goals += 0.15 * ((urgency_factor - 1.0) / 0.25)
-    momentum_goals += (defensive_yel * 0.05)
+        momentum_mult += 0.15 * ((urgency_factor - 1.0) / 0.25)
+    momentum_mult += (defensive_yel * 0.05)
     if siege_boost > 1.0:
-        momentum_goals += min(0.35, (siege_boost - 1.0) * 0.5)
+        momentum_mult += min(0.35, (siege_boost - 1.0) * 0.5)
 
     lambda_goals = clamp(
-        (base_goals + momentum_goals) * phase.goal_modifier * decay_factor,
+        base_goals * max(0.1, momentum_mult) * phase.goal_modifier * decay_factor,
         0.05,
         params.max_goal_lambda,
     )
@@ -1590,9 +1590,9 @@ def run_model(
         + (danger_rate * c_weight_adj) * params.corner_danger_weight
         + (params.corner_baseline_per90 / 90.0) * params.corner_baseline_weight
     ) * siege_boost
-    # --- MODELO ADITIVO (CORNERS) ---
+    # --- MODELO MULTIPLICATIVO (CORNERS) ---
     base_corners = corner_rate * remaining_minutes * params.corner_multiplier
-    momentum_corners = 0.0
+    momentum_mult_c = 1.0
     
     # 1.5 Wing Pressure Factor (WPF) - Ataque Lateral / Presión
     centros_totales = state.centros_local + state.centros_visitante
@@ -1612,112 +1612,112 @@ def run_model(
         wpf = (wpf * 0.4) + (wpf_reciente * 0.6)
         
     if wpf > params.wpf_high:
-        momentum_corners += 0.40
+        momentum_mult_c += 0.40
     elif wpf < params.wpf_low and state.minuto >= 30:
-        momentum_corners -= 0.50 # Castigo a señales falsas
+        momentum_mult_c -= 0.50 # Castigo a señales falsas
     
     # 1.6 Factor Cuerda Floja (Corners)
-    momentum_corners += (defensive_yel * 0.10)
+    momentum_mult_c += (defensive_yel * 0.10)
     
     # 2. Bono de Desesperación (Trailing Team)
     if (score_diff == 1 or score_diff == 0) and state.minuto >= 75:
-        momentum_corners += 0.30
+        momentum_mult_c += 0.30
         if state.centros_recientes > 2.0:
-            momentum_corners += 0.40
+            momentum_mult_c += 0.40
 
     # 3. Penalización por Empate Tardío (Conservadurismo)
     if state.goles_local == state.goles_visitante and state.minuto >= 85:
-        momentum_corners -= 0.35
+        momentum_mult_c -= 0.35
 
     # 4. Filtro de Posesión Estéril (REFINADO)
     tiro_sucio_ratio = total_shots / (total_xg + 0.1)
     if tiro_sucio_ratio > 18 and total_shots >= 8:
-        momentum_corners += 0.40
+        momentum_mult_c += 0.40
     
     high_possession = state.posesion_local > 62 or state.posesion_local < 38
     if high_possession and state.ventana_reciente_min is not None:
         if recent_xg_rate < 0.10 and recent_tiros_rate < 0.15 and state.minuto >= 45:
-             momentum_corners -= 0.40
+             momentum_mult_c -= 0.40
 
     # 5. Bono de Asedio (Liderazgo por 2+)
     if score_diff >= 2 and state.minuto >= 70:
-        momentum_corners += 0.45
+        momentum_mult_c += 0.45
 
     if state.minuto >= 70 and total_shots >= 16:
-        momentum_corners += (params.late_corner_boost - 1.0) * 1.5
+        momentum_mult_c += (params.late_corner_boost - 1.0) * 1.5
         
     if state.ventana_reciente_min is not None:
         if recent_xg_rate < (xg_rate * 0.7) and state.minuto >= 60:
-            momentum_corners -= 0.25
+            momentum_mult_c -= 0.25
         
         if recent_corners_rate >= 0.16:
-            momentum_corners += 0.30
+            momentum_mult_c += 0.30
         elif recent_corners_rate >= 0.11:
-            momentum_corners += 0.15
+            momentum_mult_c += 0.15
 
     lambda_corners = clamp(
-        (base_corners + momentum_corners) * phase.corner_modifier * decay_factor,
+        base_corners * max(0.1, momentum_mult_c) * phase.corner_modifier * decay_factor,
         0.05,
         params.max_corner_lambda,
     )
 
-    # --- MODELO ADITIVO (TARJETAS) ---
+    # --- MODELO MULTIPLICATIVO (TARJETAS) ---
     card_rate = tension_index + (params.card_baseline_per90 / 90.0) * params.card_baseline_weight
     base_cards = card_rate * remaining_minutes * params.card_multiplier
-    momentum_cards = 0.0
+    momentum_mult_card = 1.0
 
     # FASE 1: Factor de urgencia de tabla
-    momentum_cards += (state.urgency_multiplier - 1.0) * 1.5
+    momentum_mult_card += (state.urgency_multiplier - 1.0) * 1.5
 
     # FASE 1: Factor de Agresividad Defensiva
     if state.defensive_yellows >= 4:
-        momentum_cards += 0.45
+        momentum_mult_card += 0.45
     elif state.defensive_yellows >= 2:
-        momentum_cards += 0.20
+        momentum_mult_card += 0.20
 
     if close_game:
-        momentum_cards += (params.close_game_card_boost - 1.0) * 1.0
+        momentum_mult_card += (params.close_game_card_boost - 1.0) * 1.0
     if state.rojas > 0:
-        momentum_cards += (params.red_card_tension_boost - 1.0) * 1.0
+        momentum_mult_card += (params.red_card_tension_boost - 1.0) * 1.0
 
     # Curva cuadratica de escalada de tarjetas en el tramo final
     if state.minuto >= 60:
         endgame_progress = clamp((state.minuto - 60.0) / 30.0, 0.0, 1.0)
         surge_mult = 2.0 * (endgame_progress ** 2.5)
-        momentum_cards += surge_mult
+        momentum_mult_card += surge_mult
     elif state.minuto >= 45:
-        momentum_cards += 0.15
+        momentum_mult_card += 0.15
 
     # Factor de desesperación
     current_cards = state.amarillas + state.rojas
     if state.minuto >= 80 and close_game and current_cards <= 2:
-        momentum_cards += 0.25
+        momentum_mult_card += 0.25
 
     # En juegos muy fisicos, escalar por tasa de faltas
     if fouls_rate >= 0.35:
-        momentum_cards += 0.35
+        momentum_mult_card += 0.35
     elif fouls_rate >= 0.30:
-        momentum_cards += 0.18
+        momentum_mult_card += 0.18
 
     # Factor de desesperación y arbitrariedad
     if fouls_rate >= 0.38 and current_cards <= 2 and state.minuto >= 50:
-        momentum_cards += 0.50 
+        momentum_mult_card += 0.50 
 
     if state.ventana_reciente_min is not None:
         if recent_fouls_rate >= 0.24:
-            momentum_cards += 0.15
+            momentum_mult_card += 0.15
         elif recent_fouls_rate >= 0.18:
-            momentum_cards += 0.08
+            momentum_mult_card += 0.08
         if recent_cards_rate >= 0.08:
-            momentum_cards += 0.20
+            momentum_mult_card += 0.20
         elif recent_cards_rate >= 0.04:
-            momentum_cards += 0.10
+            momentum_mult_card += 0.10
 
-    base_expected_cards = (base_cards + momentum_cards) * phase.card_modifier * decay_factor
+    base_expected_cards = base_cards * max(0.1, momentum_mult_card) * phase.card_modifier * decay_factor
     
-    # MATEMATICA DEL RIESGO: Piso de Peligro al final del partido.
+    # MATEMATICA DEL RIESGO: Aumento ligero proporcional al final del partido.
     if state.minuto >= 85 and close_game:
-        base_expected_cards = max(base_expected_cards, 0.65)
+        base_expected_cards *= 1.25
         
     lambda_cards = clamp(
         base_expected_cards,
@@ -2083,8 +2083,9 @@ def apply_market_guardrails(
         # El modelo DEBE exigir un número mínimo innegociable de Tiros a Puerta y Centros.
         if decision.best_side == "OVER":
             total_centros = getattr(state, 'centros_local', 0) + getattr(state, 'centros_visitante', 0)
-            if total_sot < 3 or total_centros < 4:
-                 return no_bet_decision(decision, f"Falso Positivo de Corners: Faltan llegadas peligrosas de verdad (Tiros Puerta: {total_sot}, Centros: {total_centros}). OVER Cancelado.")
+            toques_area = state.touches_in_box_home + state.touches_in_box_away
+            if total_sot < 3 or (total_centros < 4 and toques_area < 15):
+                 return no_bet_decision(decision, f"Falso Positivo de Corners: Faltan llegadas peligrosas de verdad (Tiros Puerta: {total_sot}, Centros: {total_centros}, Toques Área: {toques_area}). OVER Cancelado.")
         if state.minuto < 15 and state.corners <= 1 and total_shots < 6:
             if decision.best_side == "UNDER" and decision.best_prob >= 0.78:
                 decision = replace(
@@ -2323,7 +2324,7 @@ def market_summary(
         prob_under = 0.0
         prob_push = 0.0
     else:
-        goles_necesarios_over = math.ceil(eventos_necesarios)
+        goles_necesarios_over = math.floor(eventos_necesarios) + 1
         # Probabilidad de superar (goles_necesarios_over - 1)
         prob_over = float(poisson.sf(goles_necesarios_over - 1, lambda_val))
         
@@ -2349,9 +2350,9 @@ def market_summary(
     true_edge_over = prob_over / true_prob_market_over if true_prob_market_over > 0 else 0.0
     true_edge_under = prob_under / true_prob_market_under if true_prob_market_under > 0 else 0.0
 
-    # EV Tradicional (para display y Kelly)
-    ev_over = prob_over * market.over
-    ev_under = prob_under * market.under
+    # EV Neto Real ((Probabilidad * Cuota) - 1)
+    ev_over = (prob_over * market.over) - 1.0
+    ev_under = (prob_under * market.under) - 1.0
 
     # --- Kelly Adaptativo (Anclado en Pinnacle o Softbook) ---
     if pinnacle_fair and pinnacle_fair.get("linea") == market.linea:
@@ -2390,14 +2391,23 @@ def market_summary(
     # Aplicamos el mismo umbral directamente al EV exacto calculado.
     best_ev_p25 = best_ev
     note = ""
-    if params.ev_p25_min > 0.0 and best_side in ("OVER", "UNDER") and best_ev_p25 < params.ev_p25_min:
+    if params.ev_p25_min > 0.0 and best_side in ("OVER", "UNDER") and best_ev_p25 < (params.ev_p25_min - 1.0):
         best_side = "NO BET"
         best_ev = max(ev_over, ev_under)
         best_prob = 0.0
         best_stake = 0.0
         note = (
-            f"EV exacto={best_ev_p25:.3f} < umbral {params.ev_p25_min:.2f}: señal insuficiente."
+            f"EV Neto={best_ev_p25:.3f} < umbral neto {(params.ev_p25_min - 1.0):.2f}: señal insuficiente."
         )
+
+    # --- Filtro Anti-Alucinaciones ---
+    # Un EV Neto mayor al 30% en un mercado líquido es indicio de que 
+    # el motor matemático se desancló de la realidad (datos basura o bug de Poisson)
+    if best_side in ("OVER", "UNDER") and best_ev > 0.30:
+        note = f"⚠️ Alerta: EV absurdo ({(best_ev*100):.1f}% > 30%). Posible alucinación del modelo o cuotas retrasadas. IGNORANDO."
+        best_side = "NO BET"
+        best_prob = 0.0
+        best_stake = 0.0
 
     return MarketDecision(
         linea=market.linea,
@@ -3035,6 +3045,10 @@ def append_match_closure(
     try:
         history_dir.mkdir(parents=True, exist_ok=True)
         with history_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(closure_payload, ensure_ascii=True) + "\n")
+            
+        global_closures_path = history_dir / "_global_closures.jsonl"
+        with global_closures_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(closure_payload, ensure_ascii=True) + "\n")
             
         # Etiquetado Automático (Shadow Mode v2)
